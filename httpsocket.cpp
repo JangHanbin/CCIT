@@ -47,8 +47,7 @@ int main(int argc, char* argv[]) //실행시 매개 변수를 입력 받음
 	}
 	SOCKET Socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);//리눅스에서 디스크립터 같은 존재이며 핸들을 반환 
 																//AF_INET -> IPv4 SOCK_STREAM -> 연결 지향 IPPROTO_TCP -> TCP타입
-	struct hostent *host;	
-	
+	struct hostent *host;	//도메인이름으로 IP주소를 얻기 위한 구조체 형식은 아래와 같음
 	/*
 	struct hostent
 	{
