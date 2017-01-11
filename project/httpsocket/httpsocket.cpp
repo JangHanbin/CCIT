@@ -9,6 +9,9 @@ using namespace std;
 
 int main(int argc, char* argv[]) //실행시 매개 변수를 입력 받음
 {
+
+
+
 	WSADATA wsaData; //아래와 같은 구조체의 선언 
 	/*
 	typedef struct WSAData {
@@ -33,13 +36,13 @@ int main(int argc, char* argv[]) //실행시 매개 변수를 입력 받음
 		// (version 2부터는 무시된다.)
 	}WSADATA, FAR * LPWSADATA;
 	*/
-
+	
 	if (argc != 3) //전달된 값이 3개가 아니면 즉, 명령어 + 도메인 + 포트가 아니면
 	{
 		cout << "사용법 : httpsocket <도메인> <포트>" << endl; //사용법 출력 후 
 		exit(1); //종료 
 	}
-
+	
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)  //프로그램에서 요구하는 윈도우 소켓의 버전을 알리고 해당 버전을 지원하는 라이브러리의 초기화 작업을 진행
 	{												//인자값(매개변수) 1->사용할 소켓 버전이 2.2 이면 0x0202를 전달해야하는데 번거로우므로 워드형식으로 만들어주는 makeword를 사용
 		cout << "WSAStartup failed.\n";				//인자값(매개변수) 2->wsadata구조체 변수의 주소 값을 인자로 전달 해야한다.함수 호출 후 해당 변수에 초기화된 라이브러리 정보가 채워짐
@@ -86,23 +89,26 @@ int main(int argc, char* argv[]) //실행시 매개 변수를 입력 받음
 	//request형식을 string에 저장 하여 request문 작성 
 	send(Socket, sendMe.c_str(), sendMe.length(), 0); //request메세지 전송 
 
-	char buffer[10000];
-
-	cout << "sizeof(buffer)" << sizeof(buffer) << endl;
+	char buffer[1024];
 
 	int nDataLength;
-	while ((nDataLength = recv(Socket, buffer, 10000, 0)) > 0) //수신 성공시 수신한 바이트 수 반환 실패시 -1 
+																				
+	while ((nDataLength = recv(Socket, buffer, sizeof(buffer),0)) > 0) //수신 성공시 수신한 바이트 수 반환 실패시 -1 
 	{
 		int i = 0;
-		while (buffer[i] >= 32|| buffer[i] == '\n' || buffer[i] == '\r')  //탐색한 char형이 문자이면
-		{ 
+		
+	
+		while (buffer[i] == '\n' || buffer[i] == '\r' || isprint(buffer[i]))  //탐색한 char형이 문자이면
+		{
 			cout << buffer[i];//출력
 			i++;
-			if (i >= sizeof(buffer))//i가 버퍼의 사이즈 보다 크다면 
+
+			if (i > sizeof(buffer) - 1)//i가 버퍼의 사이즈 보다 크다면 
 			{
 				break;//while문 탈출 
 			}
 		}
+
 	}
 	closesocket(Socket); //소켓 종료
 	WSACleanup(); //WSA종료 
@@ -114,4 +120,4 @@ int main(int argc, char* argv[]) //실행시 매개 변수를 입력 받음
 
 
 
-
+//소스코드 참고 : http://nine01223.tistory.com/270
