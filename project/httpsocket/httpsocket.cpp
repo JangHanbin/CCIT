@@ -96,14 +96,13 @@ int main(int argc, char* argv[]) //실행시 매개 변수를 입력 받음
 	while ((nDataLength = recv(Socket, buffer, sizeof(buffer),0)) > 0) //수신 성공시 수신한 바이트 수 반환 실패시 -1 
 	{
 		int i = 0;
-		
-	
-		while (buffer[i] == '\n' || buffer[i] == '\r' || isprint(buffer[i]))  //탐색한 char형이 문자이면
+																							 //(unsigned char)에 대한 참조http://mwultong.blogspot.com/2007/08/unsigned-char-char-c-8.html
+																							 //(unsigned char)에 대한 참조 https://github.com/EQEmu/Server/issues/396 
+		while (buffer[i] == '\n' || buffer[i] == '\r' || isprint((unsigned char)buffer[i]))  //탐색한 char형이 문자이면
 		{
 			cout << buffer[i];//출력
 			i++;
-
-			if (i > sizeof(buffer) - 1)//i가 버퍼의 사이즈 보다 크다면 
+			if (i > nDataLength)//i가 버퍼의 사이즈 보다 크다면 
 			{
 				break;//while문 탈출 
 			}
