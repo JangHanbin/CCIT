@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) //Device , Filter
 	}
 
 
-	pcap_loop(pcd, 1, callback, NULL); 
+	pcap_loop(pcd, 0, callback, NULL); //count 1 -> 0 infinity loop
 
 	
 
