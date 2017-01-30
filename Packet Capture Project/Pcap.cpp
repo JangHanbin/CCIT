@@ -157,7 +157,8 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 
 		if(iph->ip_p== IPPROTO_TCP) //next protocol is TCP
 		{
-			tcph =(struct tcphdr *)(packet + iph->ip_hl *4);//TCP Header
+			packet = packet + iph->ip_hl * 4;
+			tcph =(struct tcphdr *)packet;					 //TCP Header
 															 //iph->ip_hl => Header length
 															 //ip_hl is word so ip_hl * 4
 															 //linux word => 4byte 
@@ -166,6 +167,7 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 			cout<<"Dst Port : "<<ntohs(tcph->dest)<<endl;
 			cout<<endl<<endl;
 
+			packet += sizeof(struct tcphdr); //To print Data Section 
 		}
 
 
