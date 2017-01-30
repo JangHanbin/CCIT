@@ -21,8 +21,8 @@ struct tcphdr *tcph; //Struct of TCP
 
 
 void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *packet);
-
 void printMac(u_int8_t *addr);
+int lengthRet(int length, int minusLen);
 
 int main(int argc, char* argv[]) //Device , Filter 
 {
@@ -123,7 +123,6 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 			
 	*/
 
-
 	ep = (struct ether_header *)packet; //Save Ethernet Header
 	cout<<"Information of Ehernet"<<endl;
 	cout<<"Src Mac Address : ";
@@ -142,6 +141,7 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 									   // network => little endian 
 									  
 
+	length = lengthRet(length, sizeof(ep));
 
 	if(ether_type == ETHERTYPE_IP)	//next protocol is IP(0x0800) defined in netinet->if_ether 
 	{	
@@ -154,6 +154,7 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 		cout<<"Src IP Address : "<<inet_ntoa(iph->ip_src)<<endl;
 		cout<<"Dest IP Address : "<<inet_ntoa(iph->ip_dst)<<endl;
 		cout<<endl<<endl;
+		length = lengthRet(length, sizeof(iph));
 
 		if(iph->ip_p== IPPROTO_TCP) //next protocol is TCP
 		{
@@ -167,6 +168,7 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 			cout<<"Dst Port : "<<ntohs(tcph->dest)<<endl;
 			cout<<endl<<endl;
 
+			length = lengthRet(length, sizeof(tcphdr));
 			packet += sizeof(struct tcphdr); //To print Data Section 
 		}
 
@@ -175,10 +177,11 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 		{
 				if(i%16==0)
 						cout<<endl;
-				printf("%02x", *packet++);
+				printf("%02x  ", *packet++);
 		}
 
-		cout<<endl<<endl;
+		cout << endl << endl;
+
 	}else{
 			cout<<"This Packet is not IP Packet"<<endl;
 	}
@@ -207,6 +210,12 @@ void printMac(u_int8_t *addr)
 
 
 	cout<<endl;
+}
+
+int lengthRet(int length, int minusLen)
+{
+	length -= minusLen;
+	return length;
 }
 
 /************************Information***************************/
