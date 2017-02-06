@@ -41,12 +41,7 @@ int main(int argc, char* argv[]) //Device , Filter
 	bpf_u_int32 maskp; //Subnet Mask
 	char errBuf[PCAP_ERRBUF_SIZE];
 	struct in_addr addr;//Struct to save IPv4
-	/*
-	struct in_addr
-	{
-			u_long s_addr;
-	}
-	*/
+
 	cout<<"Device :"<<device<<endl;
 	if(ret = pcap_lookupnet(device,&netp,&maskp,errBuf) <0) //Get Network , Subnet mask about Device
 	{														//error => return -1 & error content => errBuf
@@ -72,7 +67,7 @@ int main(int argc, char* argv[]) //Device , Filter
 
 	//BUFSIZ is a optimum size (defined in csdio)
 	//Get packet capture descriptor from Device
-	if((pcd = pcap_open_live(device,BUFSIZ, NONPROMISCUOUS , -1, errBuf))==NULL)
+	if((pcd = pcap_open_live(device,BUFSIZ, NONPROMISCUOUS , 1, errBuf))==NULL)
 	{
 			perror(errBuf);
 			exit(1);
@@ -112,16 +107,7 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 	struct ether_header *ep;
 	unsigned short ether_type;
 	int length=pkthdr->len;
-	/* ehternet header */
-	/*
-	struct ehter_header
-	{
-			u_int8_t ether_dhost[ETH_ALEN];
-			u_int8_t ether_shost[ETH_ALEN];
-			u_int16_t ehter_type;
-	}
-			
-	*/
+
 
 	ep = (struct ether_header *)packet; //Save Ethernet Header
 	cout<<"Information of Ehernet"<<endl;
