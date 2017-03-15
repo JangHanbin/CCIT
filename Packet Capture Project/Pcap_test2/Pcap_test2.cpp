@@ -17,10 +17,12 @@ using namespace std;
 
 #define PROMISCUOUS 1 //Get every packet from Ethernet
 #define NONPROMISCUOUS 0 //Get only mine from Ethernet
+#define Host 0x486f7374
+struct ps{
+    uint32_t a;
+};
 
-
-
-void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *packet);
+void printPacket( const struct pcap_pkthdr *pkthdr, const u_char *packet);
 void printMac(u_int8_t *addr);
 int lengthRet(int length, int minusLen);
 
@@ -93,7 +95,45 @@ int main(int argc, char* argv[]) //Device , Filter
     }
 
 
-    pcap_loop(pcd, 0, callback, NULL); //count 1 -> 0 infinity loop
+    const u_char *pkt_data;//packet
+    struct pcap_pkthdr *pktHeader; //Packet Header
+
+    /*  pcap_next_ex means of return value
+     * // return 1 if the packet has been read without problems.
+     * // return 0 if the timeout set with pcap_open_live() has elapsed(in this case pkt_header , pkt_data don't point to a valid packet
+     * // return -1 if an error occurred
+     * // return -2 if EOF was reached reading from an offline capture
+     */
+    int valueOfNextEx;
+
+    while(true)
+    {
+        valueOfNextEx = pcap_next_ex(pcd,&pktHeader,&pkt_data);
+
+
+        if(valueOfNextEx==0)
+        {
+            cout<<"need a sec.. to packet capture"<<endl;
+            continue;
+        }
+        else if(valueOfNextEx==-1)
+        {
+            perror("pcap_next_ex function has an error!!!");
+            exit(1);
+        }
+        else if(valueOfNextEx==-2) {
+            cout<<"the packet have reached EOF!!"<<endl;
+            exit(0);
+        }else{
+                printPacket(pktHeader,pkt_data);
+        }
+
+        //pcap_next(pcd,pktHeader);
+
+    }
+    printPacket(pktHeader,pkt_data);
+
+    //pcap_loop(pcd, 0, callback, NULL); //count 1 -> 0 infinity loop
 
 
 
@@ -104,9 +144,8 @@ int main(int argc, char* argv[]) //Device , Filter
 
 
 //packet => recevied pakcet
-void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *packet)
+void printPacket(const struct pcap_pkthdr *pkthdr, const u_char *packet)
 {
-    (void)useless;
     struct ether_header *ep;
     unsigned short ether_type;
     int length=pkthdr->len;
@@ -179,28 +218,28 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
         }
 
         cout<<endl;
-  /* print Host Code
-          int location=0;
-      //  uint32_t *host=ntohl(printArr++)
-        for(int i=0;i <length-3;i++) //find Host
-        {
-            if(printArr[i]=='H'&&printArr[i+1]=='o'&&printArr[i+2]=='s'&&printArr[i+3]=='t')
-                location=i;
-        }
-
         cout<<endl;
 
-        if(location!=0) //if find Host location
-        {
-            while (printArr[location]!=11&&printArr[location+1]!=10)// reach 0d 0a
-            {
-                cout<<printArr[location++];
-            }
-        }
+        unsigned long *host;
 
-        location=0;
-        cout << endl << endl;
-*/
+        while(length-->3)//print host
+        {
+            host = (unsigned long *)printArr;
+            if(ntohl(*host)==Host)
+                    while(*printArr!=0x0d&&*(printArr+1)!=0x0a)
+                       {
+                              cout<<*printArr++;
+                       }
+            else
+                printArr++;
+
+        }
+        cout<<endl;
+    cout<<dec<<endl;
+
+
+
+
     }else{
             cout<<"This Packet is not IP Packet"<<endl;
     }
