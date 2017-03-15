@@ -18,8 +18,6 @@ using namespace std;
 #define PROMISCUOUS 1 //Get every packet from Ethernet
 #define NONPROMISCUOUS 0 //Get only mine from Ethernet
 
-struct ip *iph; //Struct of IP
-struct tcphdr *tcph; //Struct of TCP
 
 
 void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *packet);
@@ -108,7 +106,7 @@ int main(int argc, char* argv[]) //Device , Filter
 //packet => recevied pakcet
 void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *packet)
 {
-
+    (void)useless;
     struct ether_header *ep;
     unsigned short ether_type;
     int length=pkthdr->len;
@@ -132,11 +130,13 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
                                        // network => little endian
 
 
+
     length = lengthRet(length, sizeof(ep));
 
     if(ether_type == ETHERTYPE_IP)	//next protocol is IP(0x0800) defined in netinet->if_ether
     {
 
+        struct ip *iph; //Struct of IP
         packet += sizeof(struct ether_header);//To bring IP header
         char address[16];
 
@@ -152,6 +152,8 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 
         if(iph->ip_p== IPPROTO_TCP) //next protocol is TCP
         {
+            struct tcphdr *tcph; //Struct of TCP
+
             packet = packet + iph->ip_hl * 4;
             tcph =(struct tcphdr *)packet;					 //TCP Header
                                                              //iph->ip_hl => Header length
@@ -166,16 +168,7 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
             packet += (tcph->th_off)*4; //To print Data Section
         }
 
-
-       unsigned char printArr[length]; // Hex -> 4bit , Hex * 2 = 8bit => unsigned char(1byte) => unsigned 8bit int
-
-
-        for(int i=0;i<length;i++) //save packet to arr
-        {
-            printArr[i]=(*packet++);
-        }
-
-
+        unsigned char* printArr = (unsigned char*)packet;
 
         for(int i=0;i<length;i++) //print data
         {
@@ -184,9 +177,11 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
             cout<<setfill('0');
             cout<<setw(2)<<hex<<(int)printArr[i]<<" ";
         }
-        cout<<dec;
 
-        int location=0;
+        cout<<endl;
+  /* print Host Code
+          int location=0;
+      //  uint32_t *host=ntohl(printArr++)
         for(int i=0;i <length-3;i++) //find Host
         {
             if(printArr[i]=='H'&&printArr[i+1]=='o'&&printArr[i+2]=='s'&&printArr[i+3]=='t')
@@ -205,7 +200,7 @@ void callback(u_char *useless, const struct pcap_pkthdr *pkthdr, const u_char *p
 
         location=0;
         cout << endl << endl;
-
+*/
     }else{
             cout<<"This Packet is not IP Packet"<<endl;
     }
