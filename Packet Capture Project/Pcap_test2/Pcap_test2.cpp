@@ -18,13 +18,14 @@ using namespace std;
 #define PROMISCUOUS 1 //Get every packet from Ethernet
 #define NONPROMISCUOUS 0 //Get only mine from Ethernet
 #define Host 0x486f7374
-struct ps{
-    uint32_t a;
-};
+
+
 
 void printPacket( const struct pcap_pkthdr *pkthdr, const u_char *packet);
 void printMac(u_int8_t *addr);
 int lengthRet(int length, int minusLen);
+void printHexData(u_int8_t *printArr, int length);
+
 
 int main(int argc, char* argv[]) //Device , Filter
 {
@@ -36,25 +37,26 @@ int main(int argc, char* argv[]) //Device , Filter
     }
 
     char * device = argv[1];
-    int ret;
-    char* netAddress;
     char* netMask;
     bpf_u_int32 netp; //IP
     bpf_u_int32 maskp; //Subnet Mask
     char errBuf[PCAP_ERRBUF_SIZE];
-    struct in_addr addr;//Struct to save IPv4
-    char address[16];
+
     cout<<"Device :"<<device<<endl;
-    if(ret = pcap_lookupnet(device,&netp,&maskp,errBuf) <0) //Get Network , Subnet mask about Device
+    int ret;
+    if((ret = pcap_lookupnet(device,&netp,&maskp,errBuf)) <0) //Get Network , Subnet mask about Device
     {														//error => return -1 & error content => errBuf
             perror(errBuf);									//error => print errBuf & exit
             exit(1);
     }
 
+    struct in_addr addr;//Struct to save IPv4
     addr.s_addr = netp;
+
+    char address[16];
     inet_ntop(AF_INET,&(addr.s_addr),address,sizeof(address));
-    //strcpy(netAddress,address);
-    netAddress=address;
+
+    char* netAddress=address;
     if(netAddress==NULL)//inet_ntoa => convert ulong type to Dotted-Decimal Notation
     {
         perror("inet_ntop");
@@ -62,10 +64,13 @@ int main(int argc, char* argv[]) //Device , Filter
     }
     cout<<"Network Address : "<< netAddress <<endl;
 
+
     addr.s_addr = maskp;
     inet_ntop(AF_INET,&addr,address,sizeof(address));
     netMask=address;
     cout<<"Subnet Mask : "<<netMask<<endl;
+
+    cout<<endl<<endl;
 
     pcap_t *pcd; //Packet capture descriptor
 
@@ -110,30 +115,27 @@ int main(int argc, char* argv[]) //Device , Filter
     {
         valueOfNextEx = pcap_next_ex(pcd,&pktHeader,&pkt_data);
 
-
-        if(valueOfNextEx==0)
+        switch (valueOfNextEx)
         {
-            cout<<"need a sec.. to packet capture"<<endl;
-            continue;
-        }
-        else if(valueOfNextEx==-1)
-        {
-            perror("pcap_next_ex function has an error!!!");
-            exit(1);
-        }
-        else if(valueOfNextEx==-2) {
-            cout<<"the packet have reached EOF!!"<<endl;
-            exit(0);
-        }else{
-                printPacket(pktHeader,pkt_data);
+            case 1:
+                 printPacket(pktHeader,pkt_data);
+                break;
+            case 0:
+                cout<<"need a sec.. to packet capture"<<endl;
+                continue;
+            case -1:
+                perror("pcap_next_ex function has an error!!!");
+                exit(1);
+            case -2:
+                cout<<"the packet have reached EOF!!"<<endl;
+                exit(0);
+            default:
+                break;
         }
 
-        //pcap_next(pcd,pktHeader);
 
     }
-    printPacket(pktHeader,pkt_data);
 
-    //pcap_loop(pcd, 0, callback, NULL); //count 1 -> 0 infinity loop
 
 
 
@@ -146,17 +148,19 @@ int main(int argc, char* argv[]) //Device , Filter
 //packet => recevied pakcet
 void printPacket(const struct pcap_pkthdr *pkthdr, const u_char *packet)
 {
+    (void)pkthdr; //trash
+
     struct ether_header *ep;
     unsigned short ether_type;
-    int length=pkthdr->len;
 
 
     ep = (struct ether_header *)packet; //Save Ethernet Header
+    cout<<"------------------------------------------------"<<endl;
     cout<<"Information of Ehernet"<<endl;
     cout<<"Src Mac Address : ";
     printMac(ep->ether_shost);
 
-    cout<<"Dest Mak Address : ";
+    cout<<"Dest Mac Address : ";
     printMac(ep->ether_dhost);
 
 
@@ -169,80 +173,81 @@ void printPacket(const struct pcap_pkthdr *pkthdr, const u_char *packet)
                                        // network => little endian
 
 
+    if(ether_type != ETHERTYPE_IP) exit(0);
 
-    length = lengthRet(length, sizeof(ep));
+    //next protocol is IP(0x0800) defined in netinet->if_ether
 
-    if(ether_type == ETHERTYPE_IP)	//next protocol is IP(0x0800) defined in netinet->if_ether
+    struct ip *iph; //Struct of IP
+    iph = (struct ip *)((u_char*)ep+sizeof(struct ether_header));//To bring IP header
+    char address[16];
+
+    cout<<"Information of IP"<<endl;
+    inet_ntop(AF_INET,&(iph->ip_src),address,sizeof(address));//change inet_ntoa(iph->ip_src) to inet_ntop
+    cout<<"Src IP Address : "<<address<<endl;
+    inet_ntop(AF_INET,&(iph->ip_dst),address,sizeof(address));
+    cout<<"Dest IP Address : "<<address<<endl;
+    cout<<endl<<endl;
+
+
+    int length = ntohs(iph->ip_len); //length -> total length -> iph + tcph+ data section.
+
+    length = lengthRet(length,iph->ip_hl*4);
+
+    if(iph->ip_p!= IPPROTO_TCP)
     {
+        cout<<"Next protocol is not TCP!!"<<endl;
+        exit(0);
+    }
 
-        struct ip *iph; //Struct of IP
-        packet += sizeof(struct ether_header);//To bring IP header
-        char address[16];
+    //next protocol is TCP
 
-        iph = (struct ip *)packet;
-        cout<<"Information of IP"<<endl;
-        inet_ntop(AF_INET,&(iph->ip_src),address,sizeof(address));//change inet_ntoa(iph->ip_src) to inet_ntop
-        cout<<"Src IP Address : "<<address<<endl;
-        inet_ntop(AF_INET,&(iph->ip_dst),address,sizeof(address));
-        cout<<"Dest IP Address : "<<address<<endl;
-        cout<<endl<<endl;
+    struct tcphdr *tcph; //Struct of TCP
 
-        length = lengthRet(length, sizeof(iph));
 
-        if(iph->ip_p== IPPROTO_TCP) //next protocol is TCP
-        {
-            struct tcphdr *tcph; //Struct of TCP
+    tcph =(struct tcphdr *)((u_char*)iph+(iph->ip_hl *4));	 //TCP Header
+                                                     //iph->ip_hl => Header length
+                                                     //ip_hl is word so ip_hl * 4
+                                                     //linux word => 4byte
 
-            packet = packet + iph->ip_hl * 4;
-            tcph =(struct tcphdr *)packet;					 //TCP Header
-                                                             //iph->ip_hl => Header length
-                                                             //ip_hl is word so ip_hl * 4
-                                                             //linux word => 4byte
-            cout<<"Informaiton of TCP"<<endl;
-            cout<<"Src Port : "<<ntohs(tcph->source)<<endl;
-            cout<<"Dst Port : "<<ntohs(tcph->dest)<<endl;
-            cout<<endl<<endl;
+   // printHexData((u_int8_t*)packet,pkthdr->len);
+    cout<<"Informaiton of TCP"<<endl;
+    cout<<"Src Port : "<<ntohs(tcph->source)<<endl;
+    cout<<"Dst Port : "<<ntohs(tcph->dest)<<endl;
+    cout<<endl<<endl;
 
-            length = lengthRet(length, (tcph->th_off)*4); //return length th_off = offset type => u_int_8
-            packet += (tcph->th_off)*4; //To print Data Section
-        }
+    length = lengthRet(length, (tcph->th_off)*4); //return length th_off = offset type => u_int_8
+     //To print Data Section
 
-        unsigned char* printArr = (unsigned char*)packet;
+    if(length<=0)
+    {
+        cout<<"There is no HTTP data"<<endl;
+    }
 
-        for(int i=0;i<length;i++) //print data
-        {
-            if(i%16==0)
-                cout<<endl;
-            cout<<setfill('0');
-            cout<<setw(2)<<hex<<(int)printArr[i]<<" ";
-        }
 
-        cout<<endl;
-        cout<<endl;
 
-        unsigned long *host;
+    u_int8_t* printArr = (u_int8_t*)((u_char*)tcph+((tcph->th_off)*4));
+    printHexData(printArr,length);
 
-        while(length-->3)//print host
-        {
-            host = (unsigned long *)printArr;
-            if(ntohl(*host)==Host)
-                    while(*printArr!=0x0d&&*(printArr+1)!=0x0a)
-                       {
-                              cout<<*printArr++;
-                       }
-            else
-                printArr++;
+    u_int32_t *host;
 
-        }
-        cout<<endl;
+    while(length-->3)//print host
+    {
+        host = (u_int32_t *)printArr;
+        if(ntohl(*host)==Host)
+                while(*printArr!=0x0d&&*(printArr+1)!=0x0a)
+                   {
+                          cout<<*printArr++;
+                   }
+        else
+            printArr++;
+
+    }
+    cout<<endl;
     cout<<dec<<endl;
 
 
 
 
-    }else{
-            cout<<"This Packet is not IP Packet"<<endl;
-    }
 
 }
 
@@ -274,6 +279,22 @@ int lengthRet(int length, int minusLen)
 {
     length -= minusLen;
     return length;
+}
+
+
+void printHexData(u_int8_t* printArr,int length)
+{
+    for(int i=0;i<length;i++) //print data
+    {
+        if(i%16==0)
+            cout<<endl;
+        cout<<setfill('0');
+        cout<<setw(2)<<hex<<(int)printArr[i]<<" ";
+    }
+
+
+
+    cout<<dec<<endl<<endl;
 }
 
 /************************Information***************************/

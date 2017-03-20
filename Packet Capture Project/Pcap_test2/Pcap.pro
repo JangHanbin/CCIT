@@ -4,4 +4,4 @@ CONFIG -= app_bundle
 CONFIG -= qt
 LIBS += '-lpcap'
 SOURCES += \
-    pcap.cpp
+    pcap_test2.cpp
