@@ -7,6 +7,8 @@
 #include <fstream>
 #include <iomanip>
 #include <sys/socket.h>
+#include <linux/if_packet.h>
+#include <net/if.h>
 
 using namespace std;
 
@@ -82,15 +84,36 @@ int main(int argc, char *argv[])
     memcpy(arpReply,&ep,sizeof(struct ether_header));
     memcpy(&arpReply[sizeof(struct ether_header)],&arp,sizeof(struct ether_arp));
 
-    int sock=socket(PF_PACKET,SOCK_PACKET,htons(ETH_P_ALL));
+    int sock=socket(PF_PACKET,SOCK_RAW,htons(ETH_P_ARP));
     cout<<"socket discryptor number : "<<sock<<endl;
-
 
     cout<<"Send Arp Packet Data "<<endl;
     printByHexData(arpReply,packetLen);
 
-    if(send(sock,arpReply,packetLen,MSG_DONTROUTE)<0)//send() return send length if error -> -1
-        cout<<"Send Error!!!"<<endl;
+
+     struct sockaddr_ll dest;
+
+     memset(&dest,0,sizeof(dest)); //init
+     dest.sll_family=htons(PF_PACKET);
+     dest.sll_protocol=htons(ETH_P_ARP);
+     //dest.sll_halen=0;
+     dest.sll_ifindex=if_nametoindex(device);
+     //dest.sll_hatype = htons(ARPHRD_ETHER);
+     //dest.sll_pkttype=PACKET_OTHERHOST;
+
+     memcpy(dest.sll_addr,sender_Mac,6);
+
+
+
+     cout<<"Device Index : "<<(int)dest.sll_ifindex<<endl;
+     u_int8_t *ptest=(u_int8_t*)&dest;
+     printByHexData(ptest,sizeof(dest));
+
+    if(sendto(sock,arpReply,packetLen,0,(struct sockaddr*)&dest,sizeof(dest))==-1) // broad cast
+         cout<<strerror(errno)<<endl;
+
+
+
 
     return 0;
 }

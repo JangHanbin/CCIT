@@ -3,5 +3,4 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 LIBS += -lpcap
-SOURCES += \
-    send_arp.cpp
+SOURCES += send_arp.cpp
