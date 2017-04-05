@@ -4,4 +4,10 @@ CONFIG -= app_bundle
 CONFIG -= qt
 LIBS += -lpcap
 LIBS += -lpthread
-SOURCES += send_arp.cpp
+SOURCES += send_arp.cpp \
+    mac.cpp \
+    ip.cpp
+
+HEADERS += \
+    mac.h \
+    ip.h
