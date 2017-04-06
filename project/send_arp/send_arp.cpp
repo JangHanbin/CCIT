@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *pcd;
-    if((pcd = pcap_open_live(device,BUFSIZ,NONPROMISCUOUS,0,errbuf))==NULL)//promiscuous
+    if((pcd = pcap_open_live(device,BUFSIZ,PROMISCUOUS,1,errbuf))==NULL)//promiscuous
     {
         perror(errbuf);
         exit(1);
@@ -155,13 +155,13 @@ int main(int argc, char *argv[])
     {
         if(antiRecover(device,pcd,errbuf,&ARPRecover,sender_Mac,target_Mac,ARPReply.arp.arp_tpa,ARPReply.arp.arp_spa))
         {
-                cout<<"antiRecover type "<<++recoverCount<<"times worked!!"<<endl;
-                sendPacket(&ARPReply,sizeof(struct ARPPacket),pcd); //send reply packet
+                    cout<<"antiRecover "<<++recoverCount<<"times worked!!"<<endl;
+                    sendPacket(&ARPReply,sizeof(struct ARPPacket),pcd); //send reply packet
+                    sendPacket(&ARPToTargetReply,sizeof(struct ARPPacket),pcd); //send reply packet
         }
+
+
     }
-
-
-
     return 0;
 }
 
@@ -453,16 +453,24 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
                     sha=ARPRecover->arp.arp_sha;
                     spa=ARPRecover->arp.arp_spa;
 
+                    /*
+                     * Mac tha;
+                    Ip tpa;
+                    tha=ARPRecover->arp.arp_tha;
+                    tpa=ARPRecover->arp.arp_tpa;*/
                     if(sha==senderMAC)
-                        if(spa==senderIP)
+                        if(spa==senderIP) //recover about senderIP
                             return 1;
 
 
                     //gateway -> senderPC
 
                     if(sha==targetMAC)
-                        if(spa==targetIP)
-                            return 1;
+                        if(spa==targetIP) //recover about targetIP
+                            return 2;
+
+
+
                 }
 
                  break;
