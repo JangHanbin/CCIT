@@ -36,7 +36,8 @@ void sendPacket(ARPPacket *arpReply, int packeLen, pcap_t *pcd);
 void getMyIP(char* device, u_int8_t* myIP);
 int  findARPReply(char* device, char* rule, u_int8_t *retnMAC);
 int antiRecover(char *device, pcap_t *pcd, char *errBuf, ARPPacket *ARPRecover, u_int8_t *senderMAC, u_int8_t *targetMAC, u_int8_t *senderIP, u_int8_t *targetIP);
-void relay(char *device, pcap_t *pcd, char *errBuf, u_int8_t *senderIP, u_int8_t *targetIP);
+void relay(char *device, pcap_t *pcd, char *errBuf, u_int8_t *senderIP, u_int8_t *targetIP, uint8_t *myMAC, uint8_t *senderMac, uint8_t *targetMAC);
+void sendReplyPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC, const u_char *originPacket);
 
 /*send_arp <dev> <sender ip> <target ip>*/
 
@@ -488,7 +489,7 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
 
 }
 
-void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderIP,u_int8_t* targetIP)
+void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderIP,u_int8_t* targetIP,uint8_t* myMAC,uint8_t* senderMAC,uint8_t* targetMAC)
 {
     bpf_u_int32 netp,maskp;
 
@@ -514,13 +515,13 @@ void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderIP,u_int8_t* 
             {
              IpPacket ippacket(pktdata);
                 if(ippacket.isIpPacket)//if packet is packet &
+                {
                     if(ippacket.saddr==targetIP)//if destination ip address == target IP
-                        pcap_sendpacket(pcd,pktdata,pkthdr->len);
+                        sendReplyPacket(pcd,pkthdr->len,myMAC,senderMAC,pktdata);
 
-                if(ippacket.isIpPacket)//if packet is packet &
                     if(ippacket.daddr==senderIP)//if destination ip address == target IP
-                        pcap_sendpacket(pcd,pktdata,pkthdr->len);
-
+                       sendReplyPacket(pcd,pkthdr->len,myMAC,targetMAC,pktdata);
+                }
                 break;
             }
             case 0:
@@ -540,3 +541,13 @@ void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderIP,u_int8_t* 
 
 }
 
+void sendReplyPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC,const u_char* originPacket)
+{
+    u_char mPacket[len];
+    memcpy(mPacket,originPacket,len);
+    struct ether_header* ep=(struct ether_header*)mPacket;
+    memcpy(ep->ether_shost,mSrcMAC,ETHER_ADDR_LEN);
+    memcpy(ep->ether_dhost,mDestMAC,ETHER_ADDR_LEN);
+
+    pcap_sendpacket(pcd,mPacket,len);
+}
