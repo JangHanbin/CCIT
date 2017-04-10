@@ -465,8 +465,10 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
                     }
 
                     struct ether_header *ep =(struct ether_header*)pkt_data;
-                    Mac srcMAC=ep->ether_shost;
-                    Mac destMAC=ep->ether_dhost;
+                    Mac srcMAC;
+                    srcMAC=ep->ether_shost;
+                    Mac destMAC;
+                    destMAC=ep->ether_dhost;
 
 
 
@@ -474,13 +476,14 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
 
                     if(ntohs(ep->ether_type)==ETHERTYPE_IP)
                     {
+
                         if(srcMAC==senderMAC)
                             if(destMAC==myMAC) //?
-                                sendRelayPacket(pcd,pktHeader->len,myMAC,senderMAC,pkt_data); //change src mac addr to sender mac & send
+                                sendRelayPacket(pcd,pktHeader->len,myMAC,targetMAC,pkt_data); //change src mac addr to target mac & send
 
                         if(srcMAC==targetMAC)
                             if(destMAC==myMAC)//?
-                                sendRelayPacket(pcd,pktHeader->len,myMAC,targetMAC,pkt_data); //change src mac addr to target mac & send
+                                sendRelayPacket(pcd,pktHeader->len,myMAC,senderMAC,pkt_data); //change src mac addr to sender mac & send
                     }
 
 
@@ -506,11 +509,12 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
 
 void sendRelayPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC,const u_char* originPacket)
 {
+
     u_char mPacket[len];
     memcpy(mPacket,originPacket,len);
     struct ether_header* ep=(struct ether_header*)mPacket;
-    memcpy(ep->ether_shost,mSrcMAC,ETHER_ADDR_LEN);
-    memcpy(ep->ether_dhost,mDestMAC,ETHER_ADDR_LEN);
-
+    memcpy(ep->ether_shost,mSrcMAC,ETHER_ADDR_LEN); //change sender MAC
+    memcpy(ep->ether_dhost,mDestMAC,ETHER_ADDR_LEN); //change Destination MAC
+  //  printByHexData(mPacket,len);
     pcap_sendpacket(pcd,mPacket,len);
 }
