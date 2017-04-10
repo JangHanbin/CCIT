@@ -440,7 +440,7 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
         {
             case 1:
                 {
-
+                    //do anti recover
                     ARPRecover=(struct ARPPacket *)pkt_data;
                     if(ntohs(ARPRecover->eh.ether_type)==ETHERTYPE_ARP) //next packet ARP
                     {
@@ -464,11 +464,11 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
 
                     }
 
-
+                    //do relay
                     IpPacket ippacket(pkt_data);
                        if(ippacket.isIpPacket)//if packet is packet &
                        {
-                           if(ippacket.saddr==targetIP)//if destination ip address == target IP
+                           if(ippacket.daddr==targetIP)//if destination ip address == target IP
                                sendRelayPacket(pcd,pktHeader->len,myMAC,senderMAC,pkt_data);
 
                            if(ippacket.daddr==senderIP)//if destination ip address == target IP
