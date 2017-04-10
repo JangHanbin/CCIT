@@ -26,7 +26,6 @@ struct ARPPacket{
 };
 
 void checkArgc(int argc);
-void macAddrToHex(char* argvMac, u_int8_t *retnMac);
 void findMyMac(char* device, u_int8_t *myMAC);
 void printByHexData(u_int8_t* printArr,int length);
 void printByMAC(u_int8_t *printArr, int length);
@@ -171,38 +170,6 @@ void checkArgc(int argc)
     }
 }
 
-
-void macAddrToHex(char *argvMac,u_int8_t *retnMac)
-{
-    int cnt=0;
-    char tempArr[3];
-    u_int8_t value;
-
-
-    int i=0;
-
-    while(true)
-    {
-        if(argvMac[i]==':') //if char is ':'
-        {
-            strncpy(tempArr,argvMac,2);
-            tempArr[2]=0;
-            value=strtol(tempArr,NULL,16);
-            retnMac[cnt++]=(int)value;
-
-            if(cnt==6)
-                break;
-
-
-            argvMac=&argvMac[i+1]; //str cut & save
-            i=0;// init index
-
-        }else{
-            i++;
-        }
-    }
-
-}
 
 void findMyMac(char* device,u_int8_t* myMAC)
 {
