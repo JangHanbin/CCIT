@@ -464,19 +464,28 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
 
                     }
 
+                    struct ether_header *ep =(struct ether_header*)pkt_data;
+                    Mac srcMAC=ep->ether_shost;
+                    Mac destMAC=ep->ether_dhost;
+
+
+
                     //do relay
-                    IpPacket ippacket(pkt_data);
-                       if(ippacket.isIpPacket)//if packet is packet &
-                       {
-                           if(ippacket.daddr==targetIP)//if destination ip address == target IP
-                               sendRelayPacket(pcd,pktHeader->len,myMAC,senderMAC,pkt_data);
 
-                           if(ippacket.daddr==senderIP)//if destination ip address == target IP
-                              sendRelayPacket(pcd,pktHeader->len,myMAC,targetMAC,pkt_data);
-                       }
+                    if(ntohs(ep->ether_type)==ETHERTYPE_IP)
+                    {
+                        if(srcMAC==senderMAC)
+                            if(destMAC==myMAC) //?
+                                sendRelayPacket(pcd,pktHeader->len,myMAC,senderMAC,pkt_data); //change src mac addr to sender mac & send
+
+                        if(srcMAC==targetMAC)
+                            if(destMAC==myMAC)//?
+                                sendRelayPacket(pcd,pktHeader->len,myMAC,targetMAC,pkt_data); //change src mac addr to target mac & send
+                    }
 
 
-                     break;
+
+                 break;
                 }
             case 0:
                 cout<<"need a sec.. to packet capture"<<endl;

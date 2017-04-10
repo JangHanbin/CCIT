@@ -5,6 +5,7 @@
 #include <cstring>
 #include <netinet/ether.h>
 #include <netinet/ip.h>
+#include "mac.h"
 
 #define IP_ADDR_LEN 4
 
