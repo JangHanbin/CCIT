@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include "printdata.h"
 #include <signal.h>
+#include <future>
 
 using namespace std;
 
@@ -65,12 +66,16 @@ int main(int argc, char *argv[])
         param[i].printInfo();
     }
 
+    Param threadparam[protoParam.sessionNum];
 
-    //callSendInfectionPacket(pcd,param,protoParam.sessionNum,threadHandler);
-    //thread t1(&callSendInfectionPacket,pcd,param,protoParam.sessionNum,threadHandler);
-    //t1.join();
+    memcpy(threadparam,param,sizeof(threadparam));
+    //&* ????
+    thread t1(callSendInfectionPacket,pcd,&*threadparam,protoParam.sessionNum,threadHandler);
+
     relayAntiRecover(pcd,param,protoParam.sessionNum);
 
+
+     t1.join();
 
 }
 
@@ -141,9 +146,9 @@ void getSenderMAC(pcap_t *pcd,Param* param,int sessionNum)
 {
 
     for (int i = 0; i < sessionNum; ++i) {
-        thread t1(&findARPReply,pcd,&param[i].sender_Mac,param[i].sender_Ip.retnIP(),param[i].my_Ip.retnIP());
+        thread t1(findARPReply,pcd,&param[i].sender_Mac,param[i].sender_Ip.retnIP(),param[i].my_Ip.retnIP());
         sleep(1);
-        thread t2(&sendARPReguest,param[i],param[i].sender_Ip.retnIP(),0,pcd);
+        thread t2(sendARPReguest,param[i],param[i].sender_Ip.retnIP(),0,pcd);
         t1.join();
         t2.join();
     }
@@ -153,9 +158,9 @@ void getTargetMAC(pcap_t *pcd,Param* param,int sessionNum)
 {
 
     for (int i = 0; i < sessionNum; ++i) {
-        thread t1(&findARPReply,pcd,&param[i].target_Mac,param[i].target_Ip.retnIP(),param[i].my_Ip.retnIP());
+        thread t1(findARPReply,pcd,&param[i].target_Mac,param[i].target_Ip.retnIP(),param[i].my_Ip.retnIP());
         sleep(1);
-        thread t2(&sendARPReguest,param[i],param[i].target_Ip.retnIP(),0,pcd);
+        thread t2(sendARPReguest,param[i],param[i].target_Ip.retnIP(),0,pcd);
         t1.join();
         t2.join();
     }
@@ -232,6 +237,8 @@ void sendInfectionPacket(pcap_t* pcd,Param param)
 
 void callSendInfectionPacket(pcap_t *pcd, Param* param, int sessionNum, bool threadHanlder)
 {
+
+
     while(threadHanlder)
     {
         for (int i = 0; i < sessionNum; ++i) {
