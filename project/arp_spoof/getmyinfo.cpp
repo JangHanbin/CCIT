@@ -3,7 +3,7 @@
 #include "cstring"
 #include <sys/ioctl.h>
 #include <unistd.h>
-
+#include <net/ethernet.h>
 
 void getMyIP(char *device,uint32_t* my_IP)
 {
@@ -43,6 +43,6 @@ void getMyhaddr(char* device,u_int8_t* my_MAC)
     }
     close(fd);
 
-    memcpy(my_MAC,ifr.ifr_ifru.ifru_hwaddr.sa_data,sizeof(ifr.ifr_ifru.ifru_hwaddr.sa_data));
+    memcpy(my_MAC,ifr.ifr_ifru.ifru_hwaddr.sa_data,ETHER_ADDR_LEN);
 
 }

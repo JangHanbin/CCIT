@@ -35,10 +35,7 @@ int main(int argc, char *argv[])
     Param param[protoParam.sessionNum]; //make class
 
     parseClass(param,argv,protoParam.sessionNum);
-    cout<<"before"<<param[1].senderIp<<endl;
     initClass(param,device,protoParam.sessionNum);
-    cout<<"argv4"<<argv[4]<<endl;
-    cout<<"after"<<param[1].senderIp<<endl;
     /*init pcd*/
     pcap_t *pcd;
     if((pcd = pcap_open_live(device,BUFSIZ,NONPROMISCUOUS,1,errBuf))==NULL)
@@ -53,8 +50,8 @@ int main(int argc, char *argv[])
         param[i].printInfo();
     }
 
-   // getSenderMAC(pcd,param,protoParam.sessionNum);
-    //getTargetMAC(pcd,param,protoParam.sessionNum);
+    getSenderMAC(pcd,param,protoParam.sessionNum);
+    getTargetMAC(pcd,param,protoParam.sessionNum);
 
 
     for (int i = 0; i < protoParam.sessionNum; ++i) {
