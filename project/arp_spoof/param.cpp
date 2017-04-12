@@ -1,5 +1,6 @@
 #include "param.h"
 #include <arpa/inet.h>
+#include "printdata.h"
 
 using namespace std;
 
@@ -24,16 +25,27 @@ void ProtoParam::usage()
 
 void Param::parse(char *argv[],int index)
 {
-    this->senderIp=argv[2+(index)*2];
-    this->targetIp=argv[3+(index)*2];
-
+    this->senderIp=argv[2+index*2];
+    cout<<this->senderIp<<endl;
+    this->targetIp=argv[3+index*2];
 }
 
 void Param::initParam(char *device)
 {
-    this->sender_Ip=this->senderIp;
     this->target_Ip=this->targetIp;
+    this->sender_Ip=this->senderIp;
     my_Ip.getMyIp(device); //init binary myIP Address
     inet_ntop(AF_INET,my_Ip.retnIP(),this->myIp,STRING_IP_ADDER_LEN);
+
     my_Mac.getMyMac(device);
+}
+
+void Param::printInfo()
+{
+    cout<<"My IP : "<<this->myIp<<endl;
+    cout<<"Sender IP : "<<this->senderIp<<endl;
+    cout<<"Target IP : "<<this->targetIp<<endl;
+    cout<<"My MAC : ";
+    printByMAC(this->my_Mac.retnMac(),ETHER_ADDR_LEN);
+
 }

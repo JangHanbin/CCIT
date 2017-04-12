@@ -30,6 +30,7 @@ public:
     Mac my_Mac;
     void parse(char* argv[], int index);
     void initParam(char* device);
+    void printInfo();
 
 };
 

@@ -4,6 +4,7 @@
 #include <thread>
 #include "param.h"
 #include <unistd.h>
+#include "printdata.h"
 
 using namespace std;
 
@@ -12,13 +13,9 @@ using namespace std;
 
 void parseClass(Param* param, char *argv[], int sessionNum);
 void initClass(Param* param, char* device, int sessionNum);
-void printByHexData(uint8_t* printArr,int length);
-void printByMAC(u_int8_t *printArr,int length);
-void printLine();
 int findARPReply(pcap_t* pcd, Mac* retnMAC, uint32_t* find_IP, uint32_t* my_IP);
-void findSenderMAC(pcap_t *pcd,Param* param,int sessionNum);
 void getSenderMAC(pcap_t *pcd,Param* param,int sessionNum);
-void getTargetMAC(pcap_t* pcd,Mac *retnMAC,uint32_t* find_IP,uint32_t* my_IP);
+void getTargetMAC(pcap_t *pcd,Param* param,int sessionNum);
 void sendARPReguest(Param param,uint32_t*findIP,int print,pcap_t *pcd);
 
 struct ARPPacket{
@@ -34,11 +31,14 @@ int main(int argc, char *argv[])
     char errBuf[PCAP_ERRBUF_SIZE];
     char* device = pcap_lookupdev(errBuf); //get device
 
+
     Param param[protoParam.sessionNum]; //make class
 
     parseClass(param,argv,protoParam.sessionNum);
+    cout<<"before"<<param[1].senderIp<<endl;
     initClass(param,device,protoParam.sessionNum);
-
+    cout<<"argv4"<<argv[4]<<endl;
+    cout<<"after"<<param[1].senderIp<<endl;
     /*init pcd*/
     pcap_t *pcd;
     if((pcd = pcap_open_live(device,BUFSIZ,NONPROMISCUOUS,1,errBuf))==NULL)
@@ -49,13 +49,23 @@ int main(int argc, char *argv[])
     /*init pcd*/
 
 
-    findSenderMAC(pcd,param,protoParam.sessionNum);
+    for (int i = 0; i < protoParam.sessionNum; ++i) {
+        param[i].printInfo();
+    }
+
+   // getSenderMAC(pcd,param,protoParam.sessionNum);
+    //getTargetMAC(pcd,param,protoParam.sessionNum);
+
 
     for (int i = 0; i < protoParam.sessionNum; ++i) {
+        cout<<"Sesstion "<<i+1<<" Info"<<endl;
+        printLine();
         cout<<"Attacker MAC : ";
         printByMAC(param[i].my_Mac.retnMac(),ETHER_ADDR_LEN);
         cout<<"Sender MAC : ";
         printByMAC(param[i].sender_Mac.retnMac(),ETHER_ADDR_LEN);
+        cout<<"Target MAC : ";
+        printByMAC(param[i].target_Mac.retnMac(),ETHER_ADDR_LEN);
 
     }
 
@@ -72,41 +82,6 @@ void initClass(Param *param, char *device,int sessionNum)
 {
     for (int i = 0; i < sessionNum; i++)
         param[i].initParam(device);
-}
-
-void printByHexData(u_int8_t *printArr, int length)
-{
-
-    for(int i=0;i<length;i++)
-    {
-        if(i%16==0)
-            cout<<endl;
-        cout<<setfill('0');
-        cout<<setw(2)<<hex<<(int)printArr[i]<<" ";
-
-    }
-
-    cout<<dec<<endl;
-    printLine();
-}
-
-void printByMAC(u_int8_t *printArr,int length)
-{
-    for(int i=0;i<length;i++)
-    {
-        cout<<setfill('0');
-        cout<<setw(2)<<hex<<(int)printArr[i];
-        if(i!=5)
-            cout<<":";
-
-    }
-
-    cout<<dec<<endl<<endl;
-}
-
-void printLine()
-{
-    cout<<"-----------------------------------------------"<<endl;
 }
 
 int findARPReply(pcap_t* pcd,Mac* retnMAC,uint32_t* find_IP,uint32_t* my_IP)
@@ -129,7 +104,6 @@ int findARPReply(pcap_t* pcd,Mac* retnMAC,uint32_t* find_IP,uint32_t* my_IP)
                    arp=(struct ARPPacket*)pkt_data;
                    if(ntohs(arp->eh.ether_type)==ETHERTYPE_ARP)
                    {
-                       cout<<"detected"<<endl;
                        Ip spa;
                        Ip tpa;
                        spa=arp->arp.arp_spa;
@@ -160,28 +134,31 @@ int findARPReply(pcap_t* pcd,Mac* retnMAC,uint32_t* find_IP,uint32_t* my_IP)
     }
 }
 
-void findSenderMAC(pcap_t *pcd,Param* param,int sessionNum)
+void getSenderMAC(pcap_t *pcd,Param* param,int sessionNum)
 {
 
     for (int i = 0; i < sessionNum; ++i) {
         thread t1(&findARPReply,pcd,&param[i].sender_Mac,param[i].sender_Ip.retnIP(),param[i].my_Ip.retnIP());
         sleep(3);
-        thread t2(&sendARPReguest,param[i],param[i].sender_Ip.retnIP(),0,pcd);
+        thread t2(&sendARPReguest,param[i],param[i].sender_Ip.retnIP(),1,pcd);
+        t1.join();
+        t2.join();
+    }
+
+}
+void getTargetMAC(pcap_t *pcd,Param* param,int sessionNum)
+{
+
+    for (int i = 0; i < sessionNum; ++i) {
+        thread t1(&findARPReply,pcd,&param[i].target_Mac,param[i].target_Ip.retnIP(),param[i].my_Ip.retnIP());
+        sleep(3);
+        thread t2(&sendARPReguest,param[i],param[i].target_Ip.retnIP(),1,pcd);
         t1.join();
         t2.join();
     }
 
 }
 
-/*
-void getTargetMAC(pcap_t *pcd, Mac *retnMAC, uint32_t *find_IP, uint32_t *my_IP)
-{
-    for (int i = 0; i < protoParam.sessionNum; ++i) {
-        thread t1(&findARPReply,pcd,&param[i].target_Mac,param[i].target_Ip.retnIP(),param[i].my_Ip.retnIP());
-        sleep(2);
-    }
-}
-*/
 
 
 

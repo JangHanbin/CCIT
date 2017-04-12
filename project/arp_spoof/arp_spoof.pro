@@ -8,10 +8,12 @@ SOURCES += main.cpp \
     ip.cpp \
     mac.cpp \
     param.cpp \
-    getmyinfo.cpp
+    getmyinfo.cpp \
+    printdata.cpp
 
 HEADERS += \
     param.h \
     mac.h \
     ip.h \
-    getmyinfo.h
+    getmyinfo.h \
+    printdata.h
