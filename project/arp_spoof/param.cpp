@@ -26,7 +26,6 @@ void ProtoParam::usage()
 void Param::parse(char *argv[],int index)
 {
     this->senderIp=argv[2+index*2];
-    cout<<this->senderIp<<endl;
     this->targetIp=argv[3+index*2];
 }
 
@@ -42,10 +41,16 @@ void Param::initParam(char *device)
 
 void Param::printInfo()
 {
-    cout<<"My IP : "<<this->myIp<<endl;
-    cout<<"Sender IP : "<<this->senderIp<<endl;
-    cout<<"Target IP : "<<this->targetIp<<endl;
+    cout<<"My IP : "<<this->myIp<<endl<<endl;
+    cout<<"Sender IP : "<<this->senderIp<<endl<<endl;
+    cout<<"Target IP : "<<this->targetIp<<endl<<endl;
     cout<<"My MAC : ";
     printByMAC(this->my_Mac.retnMac(),ETHER_ADDR_LEN);
+    cout<<"Sender MAC : ";
+    printByMAC(this->sender_Mac.retnMac(),ETHER_ADDR_LEN);
+    cout<<"Target MAC : ";
+    printByMAC(this->target_Mac.retnMac(),ETHER_ADDR_LEN);
+
+
 
 }

