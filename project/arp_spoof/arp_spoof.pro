@@ -4,6 +4,8 @@ CONFIG -= app_bundle
 CONFIG -= qt
 LIBS += -lpcap
 LIBS += -lpthread
+LIBS += -lglog
+
 SOURCES += main.cpp \
     ip.cpp \
     mac.cpp \

