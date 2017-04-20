@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
 		fileOpen(File, parse.retnFileName());
 	
 	int16_t priority = 0; //우선순위를 0으로 설정
-	HANDLE handle = WinDivertOpen("tcp", WINDIVERT_LAYER_NETWORK, priority, WINDIVERT_FLAG_SNIFF); //필터를 tcp로, WINDIVERT_LAYER_NETWORK=> 네트워크 레이어 즉 3계층에서 동작하도록,  priority를 0으로 SNIFF모드로 설정
+	HANDLE handle = WinDivertOpen("tcp", WINDIVERT_LAYER_NETWORK, priority, 0); //필터를 tcp로, WINDIVERT_LAYER_NETWORK=> 네트워크 레이어 즉 3계층에서 동작하도록,  priority를 0으로 DROP모드로 설정
 	
 	if (handle == INVALID_HANDLE_VALUE) //설정이 되지 않았을 경우 
 	{
@@ -74,20 +74,27 @@ int main(int argc, char* argv[])
 		}
 		ip_header = (PWINDIVERT_IPHDR)packet;
 
-		int origin = packet_len;
-
+		UINT originPacketLen = packet_len;
+		WinDivertSend(handle, packet, sizeof(packet), &addr, 0);
 		int ip_headerLen = ip_header->HdrLength * 4;
 		packet_len -= ip_headerLen; //데이터 출력을 위해 길이 -
 
-		if (ip_header->Protocol != TCP) continue; //TCP헤더 타입이 아니면 다시 패킷 수신
-
+		if (ip_header->Protocol != TCP)  //TCP헤더 타입이 아니면 다시 패킷 수신
+		{
+			WinDivertSend(handle, packet, sizeof(packet), &addr, &originPacketLen);
+			continue;
+		}
 		PWINDIVERT_TCPHDR tcp_header = (PWINDIVERT_TCPHDR)(packet + ip_headerLen); //tcp헤더 참조 
 
 		int tcp_headerLen= tcp_header->HdrLength * 4;
 		packet_len -= tcp_headerLen;
 		
 		if (packet_len <= 0)//data부분이 없으면
+		{
+			WinDivertSend(handle, packet, sizeof(packet), &addr, &originPacketLen);
 			continue; //패킷 다시 캡쳐
+		}
+			
 
 
 	
@@ -120,10 +127,19 @@ int main(int argc, char* argv[])
 		}
 
 		uint8_t* hostInPacket = new uint8_t[hostLen+1]; //길이만큼 동적 할당
-		memcpy(hostInPacket, sHost, hostLen); //
-		hostInPacket[hostLen] = 0;
-		cout << hostInPacket << endl;
+		memcpy(hostInPacket, sHost, hostLen); // 해당 문자열 복사 
+		hostInPacket[hostLen] = 0; //널 추가
 		
+		if (!parse.retnIsFile()) //파일이 없으면 즉, 인자로 주소를 받으면
+		{
+			if (strcmp((char*)hostInPacket, parse.retnHost()) == 0)
+			{
+				cout << "Host " << parse.retnHost() << " Detected !!" << endl;
+			}
+			else { //해당 호스트가 아니라면 
+				WinDivertSend(handle, packet, sizeof(packet), &addr, &originPacketLen);
+			}
+		}
 }
 	/*
 	char tmp[100];
