@@ -28,8 +28,7 @@ int main(int argc, char* argv[])
 		fileOpen(File, parse.retnFileName());
 	
 	int16_t priority = 0; //우선순위를 0으로 설정
-	HANDLE handle = WinDivertOpen("tcp", WINDIVERT_LAYER_NETWORK, priority, 0); //필터를 tcp로, WINDIVERT_LAYER_NETWORK=> 네트워크 레이어 즉 3계층에서 동작하도록,  priority를 0으로 DROP모드로 설정
-	
+	HANDLE handle = WinDivertOpen("tcp", WINDIVERT_LAYER_NETWORK, priority, 0); //필터를 tcp로, WINDIVERT_LAYER_NETWORK=> 네트워크 레이어 즉 3계층에서 동작하도록,  priority를 0으로 이때 마지막 flag 값은 사이트에 나와 있지 않지만 다른 플래그를 설정하는 것이아닌 사용자가 임의로 정할 수 있게 해주는 flag로 추정
 	if (handle == INVALID_HANDLE_VALUE) //설정이 되지 않았을 경우 
 	{
 		if (GetLastError() == ERROR_INVALID_PARAMETER) //에러의 값이 파라미터 즉, 필터가 잘못된경우
@@ -58,7 +57,6 @@ int main(int argc, char* argv[])
 	uint8_t packet[MAXBUF];
 	UINT packet_len; //uint-> unsigned int 
 	WINDIVERT_ADDRESS addr;
-	
 	/* 프로토콜 헤더 정의*/
 	PWINDIVERT_IPHDR ip_header; //PWINDIVERT_IPHDR 이것 자체가 포인터를 의미하는 헤더 
 	
@@ -73,15 +71,28 @@ int main(int argc, char* argv[])
 			continue;
 		}
 		ip_header = (PWINDIVERT_IPHDR)packet;
-
 		UINT originPacketLen = packet_len;
-		WinDivertSend(handle, packet, sizeof(packet), &addr, 0);
+
 		int ip_headerLen = ip_header->HdrLength * 4;
 		packet_len -= ip_headerLen; //데이터 출력을 위해 길이 -
 
 		if (ip_header->Protocol != TCP)  //TCP헤더 타입이 아니면 다시 패킷 수신
 		{
-			WinDivertSend(handle, packet, sizeof(packet), &addr, &originPacketLen);
+			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL)) //3번째 인자는 패킷의 길이를 넘겨주고 5번째는 실제 보낸 패킷의 길이를 반환해주는 인자
+			{
+				cout << "WinDivertSend Error!!2" << endl;
+				cout << GetLastError() << endl;
+				printHexData(packet, originPacketLen);
+				cout << "Direction : " << (int)addr.Direction << endl; //out bound 0
+				cout << "Interface : " << (int)addr.IfIdx << endl;
+				UINT8 *src_addr = (UINT8 *)&ip_header->SrcAddr;
+				UINT8 *dst_addr = (UINT8 *)&ip_header->DstAddr;
+				printf("ip.SrcAddr=%u.%u.%u.%u ip.DstAddr=%u.%u.%u.%u ",
+					src_addr[0], src_addr[1], src_addr[2], src_addr[3],
+					dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
+				cout << endl;
+				continue;
+			}
 			continue;
 		}
 		PWINDIVERT_TCPHDR tcp_header = (PWINDIVERT_TCPHDR)(packet + ip_headerLen); //tcp헤더 참조 
@@ -91,7 +102,21 @@ int main(int argc, char* argv[])
 		
 		if (packet_len <= 0)//data부분이 없으면
 		{
-			WinDivertSend(handle, packet, sizeof(packet), &addr, &originPacketLen);
+			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
+			{
+				cout << "WinDivertSend Error!!3" << endl;
+				cout << GetLastError() << endl;
+				printHexData(packet, originPacketLen);
+				cout << "Direction : " << (int)addr.Direction << endl; //out bound 0
+				cout << "Interface : " << (int)addr.IfIdx << endl;
+				UINT8 *src_addr = (UINT8 *)&ip_header->SrcAddr;
+				UINT8 *dst_addr = (UINT8 *)&ip_header->DstAddr;
+				printf("ip.SrcAddr=%u.%u.%u.%u ip.DstAddr=%u.%u.%u.%u ",
+					src_addr[0], src_addr[1], src_addr[2], src_addr[3],
+					dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
+				cout << endl;
+				continue;
+			}
 			continue; //패킷 다시 캡쳐
 		}
 			
@@ -137,7 +162,21 @@ int main(int argc, char* argv[])
 				cout << "Host " << parse.retnHost() << " Detected !!" << endl;
 			}
 			else { //해당 호스트가 아니라면 
-				WinDivertSend(handle, packet, sizeof(packet), &addr, &originPacketLen);
+				if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
+				{
+					cout << "WinDivertSend Error!!4" << endl;
+					cout << GetLastError() << endl;
+					printHexData(packet, originPacketLen);
+					cout << "Direction : " << (int)addr.Direction << endl; //out bound 0
+					cout << "Interface : " << (int)addr.IfIdx << endl;
+					UINT8 *src_addr = (UINT8 *)&ip_header->SrcAddr;
+					UINT8 *dst_addr = (UINT8 *)&ip_header->DstAddr;
+					printf("ip.SrcAddr=%u.%u.%u.%u ip.DstAddr=%u.%u.%u.%u ",
+						src_addr[0], src_addr[1], src_addr[2], src_addr[3],
+						dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
+					cout << endl;
+					continue;
+				}
 			}
 		}
 }
