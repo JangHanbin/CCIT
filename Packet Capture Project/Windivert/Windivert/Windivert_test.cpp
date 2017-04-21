@@ -155,6 +155,8 @@ int main(int argc, char* argv[])
 		memcpy(hostInPacket, sHost, hostLen); // 해당 문자열 복사 
 		hostInPacket[hostLen] = 0; //널 추가
 		
+		char domain[70];//세계에서 가장 큰 도메인이 63글자
+		bool isFind = false;
 		if (!parse.retnIsFile()) //파일이 없으면 즉, 인자로 주소를 받으면
 		{
 			if (strcmp((char*)hostInPacket, parse.retnHost()) == 0)
@@ -179,6 +181,39 @@ int main(int argc, char* argv[])
 				}
 			}
 		}
+		else //파일이 있으면  
+		{
+			while (!File.eof())//파일의 끝일때 까지 
+			{
+				File.getline(domain, 70);
+				//string tmp=domain;
+				if (strcmp(domain, (char*)hostInPacket) == 0)
+				{
+					cout << "Host : "<<hostInPacket << "Detected!! " << endl;
+					isFind = true;
+				}
+			}
+		}
+
+		if (isFind)
+		{
+			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
+			{
+				cout << "WinDivertSend Error!!4" << endl;
+				cout << GetLastError() << endl;
+				printHexData(packet, originPacketLen);
+				cout << "Direction : " << (int)addr.Direction << endl; //out bound 0
+				cout << "Interface : " << (int)addr.IfIdx << endl;
+				UINT8 *src_addr = (UINT8 *)&ip_header->SrcAddr;
+				UINT8 *dst_addr = (UINT8 *)&ip_header->DstAddr;
+				printf("ip.SrcAddr=%u.%u.%u.%u ip.DstAddr=%u.%u.%u.%u ",
+					src_addr[0], src_addr[1], src_addr[2], src_addr[3],
+					dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
+				cout << endl;
+				continue;
+			}
+			isFind = false;
+		}
 }
 	/*
 	char tmp[100];
@@ -191,6 +226,7 @@ int main(int argc, char* argv[])
 	}
 	*/
 
+	WinDivertClose(handle);
 	File.close();
 }
 
