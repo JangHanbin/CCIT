@@ -25,7 +25,6 @@ int main(int argc, char* argv[])
 {
 	Parse parse(argc, argv);
 	ifstream File;
-
 	if (parse.retnIsFile()) //파일이 있으면
 		fileOpen(File, parse.retnFileName());
 	
@@ -78,6 +77,8 @@ int main(int argc, char* argv[])
 		int ip_headerLen = ip_header->HdrLength * 4;
 		packet_len -= ip_headerLen; //데이터 출력을 위해 길이 -
 
+
+
 		if (ip_header->Protocol != TCP)  //TCP헤더 타입이 아니면 다시 패킷 수신
 		{
 			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL)) //3번째 인자는 패킷의 길이를 넘겨주고 5번째는 실제 보낸 패킷의 길이를 반환해주는 인자
@@ -113,7 +114,7 @@ int main(int argc, char* argv[])
 		uint8_t* sHost;//문자열의 시작 주소를 저장
 		int hostLen = 0;
 		clock_t begin, end;
-
+		char domain[100];//8321721409635176959_6692a73d9863413757862736759a5ff629b6e5a8.blogspot.com 74글자 이상 + 인덱스 번호  while문 밖에 써주는게 메모리 소모가 적을 것 같음
 
 		while (packet_len-- > 3) //마지막 길이로 부터 3이전까지 참조
 		{
@@ -138,14 +139,29 @@ int main(int argc, char* argv[])
 			}
 		}
 		if (hostLen == 0) //Host 부분을 찾지 못했으면
+		{
+			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL)) //3번째 인자는 패킷의 길이를 넘겨주고 5번째는 실제 보낸 패킷의 길이를 반환해주는 인자
+			{
+				cout << "WinDivertSend Error!!2" << endl;
+				cout << GetLastError() << endl;
+				continue;
+			}
 			continue;//다시 패킷 캡쳐
+		}
+			
 		uint8_t* hostInPacket = new uint8_t[hostLen+1]; //길이만큼 동적 할당
 		memcpy(hostInPacket, sHost, hostLen); // 해당 문자열 복사 
 		hostInPacket[hostLen] = 0; //널 추가
+		string domainInPacket = (char*)hostInPacket;
+	
+		if (domainInPacket.find("www") != string::npos) //문장에 www가 있으면
+			domainInPacket = domainInPacket.substr(domainInPacket.find(".") + 1, domainInPacket.length()); //www를 자름 
 
-		cout << "Host : " << hostInPacket << " Detected In Packet!!" << endl;
 
-		char domain[70];//세계에서 가장 큰 도메인이 63글자
+//		cout << "Host : " << hostInPacket << " Detected In Packet!!" << endl;
+
+
+
 		bool isFind = false;
 
 		begin = clock();
@@ -166,40 +182,44 @@ int main(int argc, char* argv[])
 		}
 		else //파일이 있으면  
 		{
+			string domainInFile;
+
 			while (!File.eof())//파일의 끝일때 까지 
 			{
-				File.getline(domain, 70);
-				string domainInFile=domain;
-				cout << domainInFile.c_str() << endl;
-				string domainInPacket = (char*)hostInPacket;
 
-				if (domainInPacket.find("www") != string::npos) //문장에 www가 있으면
-					domainInPacket = domainInPacket.substr(domainInPacket.find(".") + 1, domainInPacket.length()); //www를 자름 
-
+				File.getline(domain, 100);
+				domainInFile = domain;
+		
 				if(domainInFile.find(domainInPacket)!=string::npos)
 				{
 					cout << "비교된 문자열 : " << domainInFile.c_str() << endl;
 					cout << "Host : "<<hostInPacket << " Blocked!! " << endl;
 					isFind = true;
 					break; //탐색할필요가 없음
-				}
+				}		
 			}
-		}
-		end = clock();
-		cout << "수행 시간 : " << (end - begin) / CLOCKS_PER_SEC << endl;
 
-		File.seekg(0, ios::beg);//파일의 버퍼 위치를 처음으로 초기화
-		if (!isFind)
-		{
-			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
+			end = clock();
+			cout << "수행 시간 : " << (end - begin) / CLOCKS_PER_SEC << endl;
+
+			File.clear(); //파일을 끝까지 읽어 EOF(End Of File) 까지 간경우 bad() state 이기 때문에 clear()를 seekg 전에 써줘야 한다. 출처: http://second815.tistory.com/entry/제목을-입력해-주세요 
+			File.seekg(0, ios::beg);//파일의 버퍼 위치를 처음으로 초기화
+
+			if (!isFind) //host를 찾지 못했다면 즉, relay가 필요하다면 
 			{
-				cout << "WinDivertSend Error!!4" << endl;
-				cout << GetLastError() << endl;
-				continue;
+
+				if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
+				{
+					cout << "WinDivertSend Error!!4" << endl;
+					cout << GetLastError() << endl;
+					continue;
+				}
+				isFind = false;
 			}
-			isFind = false;
+
 		}
-}
+
+	}
 
 	WinDivertClose(handle);
 	File.close();
