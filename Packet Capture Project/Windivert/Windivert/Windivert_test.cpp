@@ -5,6 +5,8 @@
 #include "windivert.h"
 #include <dbnetlib.h>
 #include <iomanip>
+#include <time.h>
+
 
 #define MAXBUF  0xFFFF
 
@@ -82,15 +84,6 @@ int main(int argc, char* argv[])
 			{
 				cout << "WinDivertSend Error!!2" << endl;
 				cout << GetLastError() << endl;
-				printHexData(packet, originPacketLen);
-				cout << "Direction : " << (int)addr.Direction << endl; //out bound 0
-				cout << "Interface : " << (int)addr.IfIdx << endl;
-				UINT8 *src_addr = (UINT8 *)&ip_header->SrcAddr;
-				UINT8 *dst_addr = (UINT8 *)&ip_header->DstAddr;
-				printf("ip.SrcAddr=%u.%u.%u.%u ip.DstAddr=%u.%u.%u.%u ",
-					src_addr[0], src_addr[1], src_addr[2], src_addr[3],
-					dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
-				cout << endl;
 				continue;
 			}
 			continue;
@@ -106,15 +99,6 @@ int main(int argc, char* argv[])
 			{
 				cout << "WinDivertSend Error!!3" << endl;
 				cout << GetLastError() << endl;
-				printHexData(packet, originPacketLen);
-				cout << "Direction : " << (int)addr.Direction << endl; //out bound 0
-				cout << "Interface : " << (int)addr.IfIdx << endl;
-				UINT8 *src_addr = (UINT8 *)&ip_header->SrcAddr;
-				UINT8 *dst_addr = (UINT8 *)&ip_header->DstAddr;
-				printf("ip.SrcAddr=%u.%u.%u.%u ip.DstAddr=%u.%u.%u.%u ",
-					src_addr[0], src_addr[1], src_addr[2], src_addr[3],
-					dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
-				cout << endl;
 				continue;
 			}
 			continue; //패킷 다시 캡쳐
@@ -128,6 +112,9 @@ int main(int argc, char* argv[])
 		UINT32 HostValue=0x486f7374; //Host 
 		uint8_t* sHost;//문자열의 시작 주소를 저장
 		int hostLen = 0;
+		clock_t begin, end;
+
+
 		while (packet_len-- > 3) //마지막 길이로 부터 3이전까지 참조
 		{
 			host = (UINT32*)tcpData;
@@ -150,33 +137,29 @@ int main(int argc, char* argv[])
 				tcpData++;
 			}
 		}
-
+		if (hostLen == 0) //Host 부분을 찾지 못했으면
+			continue;//다시 패킷 캡쳐
 		uint8_t* hostInPacket = new uint8_t[hostLen+1]; //길이만큼 동적 할당
 		memcpy(hostInPacket, sHost, hostLen); // 해당 문자열 복사 
 		hostInPacket[hostLen] = 0; //널 추가
-		
+
+		cout << "Host : " << hostInPacket << " Detected In Packet!!" << endl;
+
 		char domain[70];//세계에서 가장 큰 도메인이 63글자
 		bool isFind = false;
+
+		begin = clock();
 		if (!parse.retnIsFile()) //파일이 없으면 즉, 인자로 주소를 받으면
 		{
 			if (strcmp((char*)hostInPacket, parse.retnHost()) == 0)
 			{
-				cout << "Host " << parse.retnHost() << " Detected !!" << endl;
+				cout << "Host " << parse.retnHost() << " Blocked !!" << endl;
 			}
 			else { //해당 호스트가 아니라면 
 				if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
 				{
 					cout << "WinDivertSend Error!!4" << endl;
 					cout << GetLastError() << endl;
-					printHexData(packet, originPacketLen);
-					cout << "Direction : " << (int)addr.Direction << endl; //out bound 0
-					cout << "Interface : " << (int)addr.IfIdx << endl;
-					UINT8 *src_addr = (UINT8 *)&ip_header->SrcAddr;
-					UINT8 *dst_addr = (UINT8 *)&ip_header->DstAddr;
-					printf("ip.SrcAddr=%u.%u.%u.%u ip.DstAddr=%u.%u.%u.%u ",
-						src_addr[0], src_addr[1], src_addr[2], src_addr[3],
-						dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
-					cout << endl;
 					continue;
 				}
 			}
@@ -186,45 +169,37 @@ int main(int argc, char* argv[])
 			while (!File.eof())//파일의 끝일때 까지 
 			{
 				File.getline(domain, 70);
-				//string tmp=domain;
-				if (strcmp(domain, (char*)hostInPacket) == 0)
+				string domainInFile=domain;
+				cout << domainInFile.c_str() << endl;
+				string domainInPacket = (char*)hostInPacket;
+
+				if (domainInPacket.find("www") != string::npos) //문장에 www가 있으면
+					domainInPacket = domainInPacket.substr(domainInPacket.find(".") + 1, domainInPacket.length()); //www를 자름 
+
+				if(domainInFile.find(domainInPacket)!=string::npos)
 				{
-					cout << "Host : "<<hostInPacket << "Detected!! " << endl;
+					cout << "비교된 문자열 : " << domainInFile.c_str() << endl;
+					cout << "Host : "<<hostInPacket << " Blocked!! " << endl;
 					isFind = true;
+					break; //탐색할필요가 없음
 				}
 			}
 		}
+		end = clock();
+		cout << "수행 시간 : " << (end - begin) / CLOCKS_PER_SEC << endl;
 
-		if (isFind)
+		File.seekg(0, ios::beg);//파일의 버퍼 위치를 처음으로 초기화
+		if (!isFind)
 		{
 			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
 			{
 				cout << "WinDivertSend Error!!4" << endl;
 				cout << GetLastError() << endl;
-				printHexData(packet, originPacketLen);
-				cout << "Direction : " << (int)addr.Direction << endl; //out bound 0
-				cout << "Interface : " << (int)addr.IfIdx << endl;
-				UINT8 *src_addr = (UINT8 *)&ip_header->SrcAddr;
-				UINT8 *dst_addr = (UINT8 *)&ip_header->DstAddr;
-				printf("ip.SrcAddr=%u.%u.%u.%u ip.DstAddr=%u.%u.%u.%u ",
-					src_addr[0], src_addr[1], src_addr[2], src_addr[3],
-					dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3]);
-				cout << endl;
 				continue;
 			}
 			isFind = false;
 		}
 }
-	/*
-	char tmp[100];
-
-	while (!File.eof()) {
-
-		File.getline(tmp,100);
-		cout << tmp << endl;
-
-	}
-	*/
 
 	WinDivertClose(handle);
 	File.close();
