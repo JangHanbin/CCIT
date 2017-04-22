@@ -25,9 +25,22 @@ int main(int argc, char* argv[])
 {
 	Parse parse(argc, argv);
 	ifstream File;
+	char *domainInFile;
+	int fileLength = 0;
+
 	if (parse.retnIsFile()) //파일이 있으면
-		fileOpen(File, parse.retnFileName());
-	
+	{
+		fileOpen(File, parse.retnFileName()); //바이너리 모드로 오픈 
+		File.seekg(0, ios::end); //파일의 프롬포트를 마지막으로 돌림
+		fileLength = File.tellg(); //파일의 총 길이 반환
+		File.seekg(0, ios::beg); //처음으로 돌림
+
+		domainInFile = new char[fileLength + 1]; //파일의 총 길이+1 만큼 동적 할당
+		domainInFile[fileLength] = 0;//널추가 실제 비교시엔 사용되지 않으나 문자열이므로 null처리 
+		File.read(domainInFile, fileLength);//파일을 전체 덤프 
+
+	}
+
 	int16_t priority = 0; //우선순위를 0으로 설정
 	HANDLE handle = WinDivertOpen("tcp", WINDIVERT_LAYER_NETWORK, priority, 0); //필터를 tcp로, WINDIVERT_LAYER_NETWORK=> 네트워크 레이어 즉 3계층에서 동작하도록,  priority를 0으로 이때 마지막 flag 값은 사이트에 나와 있지 않지만 다른 플래그를 설정하는 것이아닌 사용자가 임의로 정할 수 있게 해주는 flag로 추정
 	if (handle == INVALID_HANDLE_VALUE) //설정이 되지 않았을 경우 
@@ -114,7 +127,6 @@ int main(int argc, char* argv[])
 		uint8_t* sHost;//문자열의 시작 주소를 저장
 		int hostLen = 0;
 		clock_t begin, end;
-		char domain[100];//8321721409635176959_6692a73d9863413757862736759a5ff629b6e5a8.blogspot.com 74글자 이상 + 인덱스 번호  while문 밖에 써주는게 메모리 소모가 적을 것 같음
 
 		while (packet_len-- > 3) //마지막 길이로 부터 3이전까지 참조
 		{
@@ -155,11 +167,12 @@ int main(int argc, char* argv[])
 		string domainInPacket = (char*)hostInPacket;
 	
 		if (domainInPacket.find("www") != string::npos) //문장에 www가 있으면
+		{
 			domainInPacket = domainInPacket.substr(domainInPacket.find(".") + 1, domainInPacket.length()); //www를 자름 
-
-
-//		cout << "Host : " << hostInPacket << " Detected In Packet!!" << endl;
-
+			hostLen -= 4; //www. 을 빼준 길이만큼 연산 
+			memcpy(hostInPacket, domainInPacket.c_str(), hostLen);
+			hostInPacket[hostLen] = 0; //널 추가
+		}
 
 
 		bool isFind = false;
@@ -182,28 +195,32 @@ int main(int argc, char* argv[])
 		}
 		else //파일이 있으면  
 		{
-			string domainInFile;
+			int count = 0;
+			
 
-			while (!File.eof())//파일의 끝일때 까지 
+			cout <<"패킷 호스트 : "<<hostInPacket << endl;
+			cout << "패킷 길이 :" << hostLen << endl;
+			
+			char* dp=domainInFile;//도메인 포인터
+
+			while ((fileLength - count)>hostLen) //참조한 길이의 나머지가 host의 길이보다 클때까지 
 			{
-
-				File.getline(domain, 100);
-				domainInFile = domain;
-		
-				if(domainInFile.find(domainInPacket)!=string::npos)
+				count++;
+			
+				if (memcmp(dp, hostInPacket,hostLen) == 0) //이때 hostLen은 null을 포함하지 않은 패킷에 있는 순수 len
 				{
-					cout << "비교된 문자열 : " << domainInFile.c_str() << endl;
-					cout << "Host : "<<hostInPacket << " Blocked!! " << endl;
+					cout << "Host : " << hostInPacket << " Blocked!! " << endl;
 					isFind = true;
+					///*ret 패킷 전송 추가 요망
 					break; //탐색할필요가 없음
-				}		
+				}
+				else {
+					dp++;
+				}
 			}
-
+			
 			end = clock();
 			cout << "수행 시간 : " << (end - begin) / CLOCKS_PER_SEC << endl;
-
-			File.clear(); //파일을 끝까지 읽어 EOF(End Of File) 까지 간경우 bad() state 이기 때문에 clear()를 seekg 전에 써줘야 한다. 출처: http://second815.tistory.com/entry/제목을-입력해-주세요 
-			File.seekg(0, ios::beg);//파일의 버퍼 위치를 처음으로 초기화
 
 			if (!isFind) //host를 찾지 못했다면 즉, relay가 필요하다면 
 			{
@@ -227,7 +244,7 @@ int main(int argc, char* argv[])
 
 void fileOpen(ifstream & File, char* FileName)
 {
-	File.open(FileName, ios::in);
+	File.open(FileName, ios::binary); //바이너리 모드로 오픈
 	if (!File.is_open())
 	{
 		perror("File open");
