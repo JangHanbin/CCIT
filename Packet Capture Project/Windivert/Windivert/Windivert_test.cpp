@@ -20,7 +20,7 @@ using namespace std;
 
 void printHexData(uint8_t* printArr, int length);
 void fileOpen(ifstream & File, char* FileName);
-
+bool sendPacket(HANDLE handle, PVOID packet, int len, WINDIVERT_ADDRESS * addr);
 int main(int argc, char* argv[])
 {
 	Parse parse(argc, argv);
@@ -108,12 +108,8 @@ int main(int argc, char* argv[])
 		
 		if (packet_len <= 0)//data부분이 없으면
 		{
-			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
-			{
-				cout << "WinDivertSend Error!!3" << endl;
-				cout << GetLastError() << endl;
+			if (sendPacket(handle, (PVOID)packet, originPacketLen, &addr))
 				continue;
-			}
 			continue; //패킷 다시 캡쳐
 		}
 			
@@ -151,12 +147,8 @@ int main(int argc, char* argv[])
 		}
 		if (hostLen == 0) //Host 부분을 찾지 못했으면
 		{
-			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL)) //3번째 인자는 패킷의 길이를 넘겨주고 5번째는 실제 보낸 패킷의 길이를 반환해주는 인자
-			{
-				cout << "WinDivertSend Error!!2" << endl;
-				cout << GetLastError() << endl;
+			if (sendPacket(handle, (PVOID)packet, originPacketLen, &addr))
 				continue;
-			}
 			continue;//다시 패킷 캡쳐
 		}
 			
@@ -183,12 +175,8 @@ int main(int argc, char* argv[])
 				cout << "Host " << parse.retnHost() << " Blocked !!" << endl;
 			}
 			else { //해당 호스트가 아니라면 
-				if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
-				{
-					cout << "WinDivertSend Error!!4" << endl;
-					cout << GetLastError() << endl;
+				if (sendPacket(handle, (PVOID)packet, originPacketLen, &addr))
 					continue;
-				}
 			}
 		}
 		else //파일이 있으면  
@@ -234,12 +222,8 @@ int main(int argc, char* argv[])
 			if (!isFind) //host를 찾지 못했다면 즉, relay가 필요하다면 
 			{
 
-				if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL))
-				{
-					cout << "WinDivertSend Error!!4" << endl;
-					cout << GetLastError() << endl;
+				if (sendPacket(handle, (PVOID)packet, originPacketLen, &addr))
 					continue;
-				}
 				isFind = false;
 			}
 
@@ -259,6 +243,18 @@ void fileOpen(ifstream & File, char* FileName)
 		perror("File open");
 		exit(1);
 	}
+}
+
+bool sendPacket(HANDLE handle, PVOID packet, int len, WINDIVERT_ADDRESS * addr)
+{
+	if (!WinDivertSend(handle, packet, len, addr, NULL)) //3번째 인자는 패킷의 길이를 넘겨주고 5번째는 실제 보낸 패킷의 길이를 반환해주는 인자
+	{
+		cout << "WinDivertSend Error!!" << endl;
+		cout << GetLastError() << endl;
+		return true;
+	}
+
+	return false;
 }
 
 
