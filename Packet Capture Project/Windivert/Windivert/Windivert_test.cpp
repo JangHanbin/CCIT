@@ -6,7 +6,7 @@
 #include <dbnetlib.h>
 #include <iomanip>
 #include <time.h>
-
+#include "RstPacket.h"
 
 #define MAXBUF  0xFFFF
 
@@ -74,7 +74,6 @@ int main(int argc, char* argv[])
 	/* 프로토콜 헤더 정의*/
 	PWINDIVERT_IPHDR ip_header; //PWINDIVERT_IPHDR 이것 자체가 포인터를 의미하는 헤더 
 	
-	UINT8 TCP = 6;//TCP의 Protocol ID 헤더에 정의된 부분이 있을 것 같지만 추후에 찾아서 수정
 
 	while (true)
 	{
@@ -92,7 +91,7 @@ int main(int argc, char* argv[])
 
 
 
-		if (ip_header->Protocol != TCP)  //TCP헤더 타입이 아니면 다시 패킷 수신
+		if (ip_header->Protocol != IPPROTO_TCP)  //TCP헤더 타입이 아니면 다시 패킷 수신
 		{
 			if (!WinDivertSend(handle, (PVOID)packet, originPacketLen, &addr, NULL)) //3번째 인자는 패킷의 길이를 넘겨주고 5번째는 실제 보낸 패킷의 길이를 반환해주는 인자
 			{
@@ -126,7 +125,7 @@ int main(int argc, char* argv[])
 		UINT32 HostValue=0x486f7374; //Host 
 		uint8_t* sHost;//문자열의 시작 주소를 저장
 		int hostLen = 0;
-		clock_t begin, end;
+
 
 		while (packet_len-- > 3) //마지막 길이로 부터 3이전까지 참조
 		{
@@ -177,7 +176,6 @@ int main(int argc, char* argv[])
 
 		bool isFind = false;
 
-		begin = clock();
 		if (!parse.retnIsFile()) //파일이 없으면 즉, 인자로 주소를 받으면
 		{
 			if (strcmp((char*)hostInPacket, parse.retnHost()) == 0)
@@ -199,7 +197,6 @@ int main(int argc, char* argv[])
 			
 
 			cout <<"패킷 호스트 : "<<hostInPacket << endl;
-			cout << "패킷 길이 :" << hostLen << endl;
 			
 			char* dp=domainInFile;//도메인 포인터
 
@@ -211,7 +208,21 @@ int main(int argc, char* argv[])
 				{
 					cout << "Host : " << hostInPacket << " Blocked!! " << endl;
 					isFind = true;
-					///*ret 패킷 전송 추가 요망
+
+					/* rst 패킷 수정
+					RstPacket rstPacket(packet);
+					RstPacket* pRst = &rstPacket;
+
+					addr.Direction = !addr.Direction; //패킷의 전송 형태를 바꿔줌
+
+					WinDivertHelperCalcChecksums((PVOID)&pRst, sizeof(RstPacket), 0);
+					if (!WinDivertSend(handle, (PVOID)&rstPacket, sizeof(RstPacket), &addr, NULL)) //send RST패킷
+					{
+						cout << "WinDivertSend Error!!" << endl;
+						cout << GetLastError() << endl;
+						continue;
+					}
+					*/
 					break; //탐색할필요가 없음
 				}
 				else {
@@ -219,8 +230,6 @@ int main(int argc, char* argv[])
 				}
 			}
 			
-			end = clock();
-			cout << "수행 시간 : " << (end - begin) / CLOCKS_PER_SEC << endl;
 
 			if (!isFind) //host를 찾지 못했다면 즉, relay가 필요하다면 
 			{
