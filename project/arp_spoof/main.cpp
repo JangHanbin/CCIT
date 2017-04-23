@@ -39,7 +39,7 @@ struct ARPPacket{
 int main(int argc, char *argv[])
 {
     google::InitGoogleLogging(argv[0]); //need to add -lglog
-    FLAGS_alsologtostderr=1;           //log print to console
+   // FLAGS_alsologtostderr=1;           //log print to console
 
     ProtoParam protoParam(argc,argv); //check arg & init sessionNum
 
@@ -313,7 +313,7 @@ void relayAntiRecover(pcap_t *pcd, Param *param,int sessionNum)
                         {
                             if(param[i].sender_Mac==ep->ether_shost) //if src MAC is senderMAC
                                 if(param[i].my_Mac==ep->ether_dhost) //if dest MAC is myMAC
-                                     if(param[i].sender_Ip==&iph->saddr)//if src IP address Sender
+                                     if(!(param[i].my_Ip==&iph->daddr))//if dest IP address is not mine
                                          sendRelayPacket(pcd,pktHeader->len,param[i].my_Mac.retnMac(),param[i].target_Mac.retnMac(),pkt_data); //change src mac addr to target mac & send
 
 
