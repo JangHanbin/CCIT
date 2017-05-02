@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Widget</class>
+ <widget class="QWidget" name="Widget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Widget</string>
+  </property>
+  <widget class="QLineEdit" name="lineEdit">
+   <property name="geometry">
+    <rect>
+     <x>210</x>
+     <y>50</y>
+     <width>113</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>0</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Button500">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>110</y>
+     <width>83</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>500</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Button100">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>160</y>
+     <width>83</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>100</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Button50">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>210</y>
+     <width>83</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>50</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Button10">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>250</y>
+     <width>83</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>10</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Coffee">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>130</y>
+     <width>83</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Coffee 200</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Tea">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>180</y>
+     <width>83</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Tea 100</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="Yul">
+   <property name="geometry">
+    <rect>
+     <x>270</x>
+     <y>230</y>
+     <width>83</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Yul 250</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>60</x>
+     <y>50</y>
+     <width>121</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Current Money</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="RestButton">
+   <property name="geometry">
+    <rect>
+     <x>150</x>
+     <y>180</y>
+     <width>83</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>Reset</string>
+   </property>
+  </widget>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <resources/>
+ <connections/>
+</ui>
