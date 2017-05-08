@@ -16,7 +16,8 @@ public:
     ~Widget();
     void addMoney(int num);
     void subMoney(int num);
-    void checkMoney(int num);
+    void checkMoney();
+
 private slots:
     void on_Button500_clicked();
 
@@ -36,7 +37,7 @@ private slots:
 
 private:
     Ui::Widget *ui;
-
+    int curMoney;
 
 };
 

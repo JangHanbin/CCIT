@@ -13,19 +13,6 @@
   <property name="windowTitle">
    <string>Widget</string>
   </property>
-  <widget class="QLineEdit" name="lineEdit">
-   <property name="geometry">
-    <rect>
-     <x>210</x>
-     <y>50</y>
-     <width>113</width>
-     <height>28</height>
-    </rect>
-   </property>
-   <property name="text">
-    <string>0</string>
-   </property>
-  </widget>
   <widget class="QPushButton" name="Button500">
    <property name="geometry">
     <rect>
@@ -141,6 +128,30 @@
    </property>
    <property name="text">
     <string>Reset</string>
+   </property>
+  </widget>
+  <widget class="QLCDNumber" name="lcdNumber">
+   <property name="geometry">
+    <rect>
+     <x>170</x>
+     <y>50</y>
+     <width>181</width>
+     <height>23</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <family>나눔고딕</family>
+     <pointsize>15</pointsize>
+     <weight>75</weight>
+     <bold>true</bold>
+    </font>
+   </property>
+   <property name="frameShape">
+    <enum>QFrame::Box</enum>
+   </property>
+   <property name="frameShadow">
+    <enum>QFrame::Sunken</enum>
    </property>
   </widget>
  </widget>
