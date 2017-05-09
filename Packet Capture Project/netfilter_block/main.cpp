@@ -8,19 +8,19 @@
 #include <errno.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include "printdata.h"
+#include <assert.h>
 #include <regex>
 
 using namespace std;
 
 void getError(string error);
-string RULE;
-static u_int32_t checkPacket (struct nfq_data *tb,int& flag);
+static u_int32_t checkPacket (struct nfq_data *tb, int& flag, Parse *parse);
 static int callback(struct nfq_q_handle *qhandle, struct nfgenmsg *nfmsg,struct nfq_data *nfa, void *data);
 uint8_t *modifyPoint(uint8_t* data, int& len, int hdrlen);
+
 int main(int argc, char *argv[])
 {
     Parse parse(argc,argv);
-    RULE=parse.retRule();
     cout<<"Host to find : "<<parse.retnDomain()<<endl;
     struct nfq_handle* handle=nfq_open();
 
@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
         getError("error during nfq_bind_pf()");
 
     /*binding this socket to queue '0'*/
-    struct nfq_q_handle* qhandle=nfq_create_queue(handle,0,&callback,NULL);
+    struct nfq_q_handle* qhandle=nfq_create_queue(handle,0,&callback,&parse);
     if(!qhandle)
         getError("error during nfq_create_queue()");
 
@@ -66,7 +66,7 @@ void getError(string error)
     exit(1);
 }
 
-static u_int32_t checkPacket(nfq_data *tb, int &flag)
+static u_int32_t checkPacket(nfq_data *tb, int &flag,Parse* parse)
 {
     int id = 0;
     struct nfqnl_msg_packet_hdr *ph;
@@ -83,20 +83,21 @@ static u_int32_t checkPacket(nfq_data *tb, int &flag)
         flag=NF_ACCEPT;
         return id;
     }
-
     struct iphdr *iph=(struct iphdr*)data;
     uint8_t hdrLen=iph->ihl*4;
     data=modifyPoint(data,ret,hdrLen);
 
+
+    assert(iph->protocol==IPPROTO_TCP&& "Protocol type must be TCP !!!");
     struct tcphdr *tchph=(struct tcphdr*)data;
     hdrLen=tchph->th_off*4;
     data=modifyPoint(data,ret,hdrLen);
 
-    regex rg(RULE);
+
     cmatch m;
-    if(regex_search((char*)data,m,rg))
+    if(regex_search((char*)data,m,*parse->retRule()))
     {
-        cout<<m[0]<<"detected! Drop Pacekt!"<<endl;;
+        cout<<m[0]<<" detected! Drop Pacekt!"<<endl;;
         flag=NF_DROP;
     }
     else
@@ -108,9 +109,9 @@ static u_int32_t checkPacket(nfq_data *tb, int &flag)
 static int callback(nfq_q_handle *qhandle, nfgenmsg *nfmsg, nfq_data *nfa, void *data)
 {
     (void)nfmsg;
-    (void)data;
+
     int flag=0;
-    u_int32_t id = checkPacket(nfa,flag); //call another method
+    u_int32_t id = checkPacket(nfa,flag,(Parse*)data); //call another method
     return nfq_set_verdict(qhandle, id, flag, 0, NULL); //decide Drop or Accept
 }
 

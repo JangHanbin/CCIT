@@ -31,6 +31,8 @@ void Parse::makeRule(string domain)
     this->findRule+=domain;
     this->findRule+=")(.*)";
 
+    rule = new regex(findRule);
+
 }
 
-string Parse::retRule() {return this->findRule;}
+regex* Parse::retRule() {return this->rule;}
