@@ -11,13 +11,13 @@ class APInfo
     uint32_t data{0};
     uint8_t channel;
     uint8_t MB; //Maximum speed supported by AP if QOS service enabled added alpha 'e'
-
+    int essidLen{0};
 public:
     Mac BSSID;
     char enc[4];
     char cipher[6];
     char auth[4];
-    char ESSID[32]; //maximum Len is 32
+    char ESSID[32]={0,}; //maximum Len is 32
 
     APInfo();
     uint32_t getBeacons() const;
@@ -31,6 +31,8 @@ public:
     uint8_t getMB() const;
     void setMB(const uint8_t &value);
 
+    int getEssidLen() const;
+    void setEssidLen(int value);
 };
 
 #endif // APINFO_H

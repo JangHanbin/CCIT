@@ -124,6 +124,71 @@ struct IEEE80211Beacon{
 
 
 };
+
+struct IEEE80211Data{
+
+    uint8_t destination_address[6];
+    uint8_t transmitter_address[6];
+    uint8_t source_address[6];
+//    uint8_t BSS_Id[6]; //same as transmitter_address
+//    uint8_t STA address[6]; //same as destination_address
+    uint16_t fragment_number:4;
+    uint16_t sequence_number:12;
+  //  uint16_t frame_check_sequence;
+
+
+};
+
+struct IEEE80211Probe{
+
+    uint8_t destination_address[6];
+    uint8_t transmitter_address[6];
+//    uint8_t source_address[6]; //same as transmitter_address
+    uint8_t BSS_Id[6];
+
+    uint16_t fragment_number:4;
+    uint16_t sequence_number:12;
+  //  uint16_t frame_check_sequence;
+
+
+};
+
+
+struct IEEE80211QoS{
+
+    uint8_t receiver_address[6];
+    uint8_t transmitter_address[6];
+    uint8_t destination_address[6];
+//    uint8_t source_address[6]; //same as transmitter_address
+//    uint8_t BSS_Id[6]; //same as transmitter_address
+//    uint8_t STA address[6]; //same as destination_address
+    uint16_t fragment_number:4;
+    uint16_t sequence_number:12;
+  //  uint16_t frame_check_sequence;
+
+
+};
+
+struct IEEE80211BlockAck{
+
+    uint8_t receiver_address[6];
+    uint8_t transmitter_address[6];
+
+    /********************Block Ack Request Control***********************************/
+    uint16_t bar_ack_policy:1;
+    uint16_t multi_TID:1;
+    uint16_t compressed_bitmap:1;
+    uint16_t reserved:9;
+    uint16_t tid:4;
+    /********************Block Ack Request Control***********************************/
+
+    /********************Block Ack Starting Sequence Control(SSC)********************/
+    uint16_t fragment:4;
+    uint16_t starting_sequence_number:12;
+    uint8_t block_ack_bitmap[8];
+
+
+};
 struct FixedParameters{
     uint8_t timestamp[8];
     uint16_t beaconInterval;

@@ -50,6 +50,16 @@ void APInfo::setMB(const uint8_t &value)
     MB = value;
 }
 
+int APInfo::getEssidLen() const
+{
+    return essidLen;
+}
+
+void APInfo::setEssidLen(int value)
+{
+    essidLen = value;
+}
+
 APInfo::APInfo()
 {
 
