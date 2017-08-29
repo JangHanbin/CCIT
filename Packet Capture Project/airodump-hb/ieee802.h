@@ -5,6 +5,9 @@
 
 #pragma pack(push,1)
 
+
+static uint8_t ieeeOUI[]={0x00,0x0f,0xac};
+static uint8_t microsof[]={0x00,0x50,0xf2};
 struct Radiotap{
     uint8_t header_revision;
     uint8_t header_pad;
@@ -189,35 +192,56 @@ struct IEEE80211BlockAck{
 
 
 };
+
+/************************wireless LAN management frame****************************************/
 struct FixedParameters{
     uint8_t timestamp[8];
     uint16_t beaconInterval;
-    uint16_t capabilitiesInfomation; //need to modify
+
+    /******************capabilities Infomaiton************************/
+    uint16_t ess_capabilities:1;
+    uint16_t ibss_status:1;
+    uint16_t cfp_participation_capabilities:2;
+    uint16_t privacy:1;
+    uint16_t short_preamble:1;
+    uint16_t pbcc:1;
+    uint16_t channel_agility:1;
+    uint16_t spectrum_management:1;
+    uint16_t cfp_participation_capabilities2:1;
+    uint16_t short_slot_time:1;
+    uint16_t automatic_power_save_delivery:1;
+    uint16_t radio_masurement:1;
+    uint16_t dsss_ofdm:1;
+    uint16_t delayed_block_ack:1;
+    uint16_t immediate_block_ack:1;
+    /******************capabilities Infomaiton************************/
+};
+
+
+struct TagInfo{
+    uint8_t tag_number;
+    uint8_t tag_length;
 };
 
 //SSID parameter size is sizeof(taggedParameters)+tag_length-sizeof(char)
 struct SSIDParameter{
-    uint8_t tag_number;
-    uint8_t tag_length;
+    struct TagInfo tagInfo;
     char SSID;
 };
 
 struct SupportedRate{
-    uint8_t tag_number;
-    uint8_t tag_length;
+    struct TagInfo tagInfo;
     uint8_t supported_rates[8];
 };
 
 struct DSParameter{
-    uint8_t tag_number;
-    uint8_t tag_length;
+    struct TagInfo tagInfo;
     uint8_t current_channel;
 
 };
 
 struct TrafficIndicationMap{
-    uint8_t tag_number;
-    uint8_t tag_length;
+    struct TagInfo tagInfo;
     uint8_t DTIM_count;
     uint8_t DTIM_period;
 
@@ -229,6 +253,114 @@ struct TrafficIndicationMap{
 
 };
 
+struct RSNFront{
+    struct TagInfo tagInfo;
+    uint16_t rsn_version;
+
+    uint8_t group_cipher_suite_oui[3];
+    uint8_t group_cipher_suite_type;
+
+    uint16_t pairwise_cipher_suite_count;
+}typedef RSNFront;
+
+struct RSNInfomation{
+
+    RSNFront rsnFront;
+    uint8_t pairwise_cipher_suite_oui[3];
+    uint8_t pairwise_cipher_suite_type;
+
+    uint16_t auth_key_management_suite_count;
+    \
+    uint8_t auth_key_management_suite_oui[3];
+    uint8_t auth_key_management_suite_type;
+
+    /******************** RSN Capabilities**********************/
+    uint16_t rsn_pre_auth_capabilities:1;
+    uint16_t rsn_no_pairwise_capabilities:1;
+    uint16_t rsn_ptksa_replay_counter_capabilities:2;
+    uint16_t rsn_gtksa_replay_counter_capabilities:2;
+    uint16_t management_frame_protection_required:1;
+    uint16_t joint_multi_band_rsna:1;
+    uint16_t peerkey_enabled:1;
+    uint16_t padding:6;
+    /******************** RSN Capabilities**********************/
+
+};
+
+struct RSNInfomation2{
+
+    RSNFront rsnFront;
+    uint8_t pairwise_cipher_suite_oui[3];
+    uint8_t pairwise_cipher_suite_type;
+
+    uint8_t pairwise_cipher_suite_oui2[3];
+    uint8_t pairwise_cipher_suite_type2;
+
+    uint16_t auth_key_management_suite_count;
+    \
+    uint8_t auth_key_management_suite_oui[3];
+    uint8_t auth_key_management_suite_type;
+
+    /******************** RSN Capabilities**********************/
+    uint16_t rsn_pre_auth_capabilities:1;
+    uint16_t rsn_no_pairwise_capabilities:1;
+    uint16_t rsn_ptksa_replay_counter_capabilities:2;
+    uint16_t rsn_gtksa_replay_counter_capabilities:2;
+    uint16_t management_frame_protection_required:1;
+    uint16_t joint_multi_band_rsna:1;
+    uint16_t peerkey_enabled:1;
+    uint16_t padding:6;
+    /******************** RSN Capabilities**********************/
+
+};
+
+struct VendorSpecific{
+    struct TagInfo tagInfo;
+    uint8_t oui[3];
+    uint8_t vender_specific_oui_type;
+};
+
+struct MicrosofWPAFront{
+    struct VendorSpecific vendorSpecific;
+    uint16_t wpa_version;
+
+    uint8_t mulicast_cipher_suite_oui[3];
+    uint8_t mulicast_cipher_suite_type;
+
+    uint16_t unicast_cipher_suite_count;
+};
+
+struct MicrosofWPA{
+
+    struct MicrosofWPAFront microsofWPAFront;
+
+    uint8_t unicast_cipher_suite_oui[3];
+    uint8_t unicast_cipher_suite_type;
+
+    uint16_t auth_key_management_suite_count;
+
+    uint8_t auth_key_management_suite_oui[3];
+    uint8_t auth_key_management_suite_type;
+
+}typedef MicrosofWPA;
+
+struct MicrosofWPA_2{
+
+    struct MicrosofWPAFront microsofWPAFront;
+
+    uint8_t unicast_cipher_suite_oui[3];
+    uint8_t unicast_cipher_suite_type;
+
+    uint8_t unicast_cipher_suite_oui2[3];
+    uint8_t unicast_cipher_suite_type2;
+
+
+    uint16_t auth_key_management_suite_count;
+
+    uint8_t auth_key_management_suite_oui[3];
+    uint8_t auth_key_management_suite_type;
+
+}typedef MicrosofWPA_2;
 #pragma pack(pop)
 
 void parseRadiotap();

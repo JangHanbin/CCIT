@@ -14,9 +14,9 @@ class APInfo
     int essidLen{0};
 public:
     Mac BSSID;
-    char enc[4];
-    char cipher[6];
-    char auth[4];
+    char enc[6];
+    char cipher[15];
+    char auth[6];
     char ESSID[32]={0,}; //maximum Len is 32
 
     APInfo();
